@@ -446,7 +446,7 @@ Each feature exports one `register` function, and the extension's activation cal
 | D1 | How agents start the checker (open question 1) | **decided: A, npm package, installed globally** |
 | D2 | Preview surface (open question 2) | **decided: A, Diagramist's own preview panel** |
 | D3 | How targets are declared (open question 3) | **decided: A, both by default, comment to opt out** |
-| D4 | Mermaid.js version policy (open question 4) | open |
+| D4 | Mermaid.js version policy (open question 4) | **decided: C, newest version plus warnings for newer types** |
 | D5 | Where PNG export runs (open question 5) | open |
 | D6 | Telemetry (open question 6) | open |
 | D7 | CLI in v1 (open question 7) | open |
@@ -533,6 +533,30 @@ project file with folder rules; C, defaults by file type plus both overrides. Th
     or "comment on line N".
 *   **Bad comments.** A comment with unknown values leaves the default in place and adds a warning.
 *   **Later, without breaking anything:** a project file with folder rules (option B).
+
+#### D4: the newest Mermaid.js, with warnings for newer diagram types
+
+*Decided 2026-11-11. The options were: A, the newest version only; B, GitHub's version; C, the newest
+version plus warnings. The author took C. GitHub does not publish the Mermaid version it runs; its own
+docs say to render an `info` diagram to see it.*
+
+*   **The pin.** Diagramist pins the newest Mermaid.js at release time (12.3.0 on 2026-11-11) to an
+    exact version. Upgrades go through the regression pull request.
+*   **The table.** A small table, `core/compat/mermaid-types.json`, maps each diagram keyword to the
+    Mermaid version that introduced it and says whether Pele supports it. It is built once from
+    Mermaid's changelog and docs. A CI check fails when the pinned Mermaid.js recognises a keyword the
+    table doesn't list, so the table can't fall behind an upgrade.
+*   **The oldest destination.** Users can set the oldest Mermaid version they publish to (for example,
+    GitHub's). Because D3 means no project file, the setting lives in two places, and "Connect AI agent"
+    copies the VS Code setting into the agent's command:
+    *   the checker option `--oldest-mermaid <version>`, in the agent's MCP command;
+    *   the VS Code setting `diagramist.oldestMermaidVersion`.
+*   **Warnings.**
+    *   A diagram whose type is newer than the oldest destination gets a warning, for example "venn-beta
+        was added in Mermaid 12.0; your oldest destination is 11.4".
+    *   Until a version is set, only beta types (keywords ending in `-beta`) are flagged, with the
+        warning "beta diagram type; may not render on sites with older Mermaid".
+    *   These are always warnings, never errors.
 
 --------------------------------------------------------------------------------
 
