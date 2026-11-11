@@ -311,14 +311,19 @@ BlockResult
 Verdict
   ok: true
   or ok: false with
-    class:    "invalid" | "unsupported" | "too-large" | "tool"
-    severity: "error" for a target renderer, "warning" otherwise
-    code:     the renderer's own code, e.g. "syntax"
-    message:  first line only
-    position: { line, column, unit: "utf16" } or null
-    snippet:  up to 200 characters: the line before and the reported line
-    hint:     one line
-    retry:    whether editing the diagram can fix it
+    errors: list of Error   -- at most one today: both renderers stop at the first error
+
+Error
+  class:    "invalid" | "unsupported" | "too-large" | "tool"
+  severity: "error" for a target renderer, "warning" otherwise
+  code:     the renderer's own code, e.g. "syntax"
+  message:  first line only
+  position: { line, column, diagramLine, diagramColumn, unit: "utf16" } or null
+            -- line/column count from the file's start;
+            -- diagramLine/diagramColumn count from the diagram's first line
+  snippet:  up to 200 characters: the line before and the reported line
+  hint:     one line
+  retry:    whether editing the diagram can fix it
 ```
 
 Agents read the text form first. A passing file takes one line, and each failing block a few lines.
@@ -494,7 +499,11 @@ author took A.*
     1 second for Mermaid.js) and when files change on disk. It never takes focus. When an agent changes
     a file that isn't shown, the status bar says so.
 *   **Status line.** It shows the file, block, renderer and its version, the update time, a short
-    content hash and the number of warnings.
+    content hash and the number of warnings. When the file has unsaved changes, it adds "unsaved
+    changes: agents check the saved file". The checker never talks to VS Code, so it can't give this
+    warning itself.
+*   **Layout badge.** When the user turns `diagramist.preview.autoDirection` on and Pele changes a
+    diagram's layout, a badge says so, for example "shown top to bottom: panel narrower than 640 px".
 *   **Theme.** It follows VS Code's light, dark and high-contrast themes. Pele gets them through the
     `--pele-*` to `--vscode-*` map; Mermaid.js gets them as its "base" theme with `themeVariables` built
     from the same colours.
@@ -638,6 +647,8 @@ file; C, a package per agent. The author took B.*
     README shows how to copy it by hand.
 *   **Versions.** The skill names the Diagramist version it was written for. "Check agent setup" flags a
     copy that is out of date.
+*   **Per-type tips live here.** They replace the brief's idea of serving examples through an MCP
+    resource or attaching them to errors.
 *   **Later, without breaking anything:** per-agent packages (option C).
 
 ## Alternatives Considered
@@ -801,6 +812,8 @@ Elephant's pick before choosing.
         with `npm install -g diagramist@<version>` and VS Code's "Install Another Version".
     *   Settings are never renamed without keeping the old key readable. Saved panel state carries a
         version number, and unknown versions fall back to defaults.
+    *   The off switch for agent tools is "Diagramist: Disconnect agent", which runs the agent's own
+        `mcp remove`. A VS Code setting can't stop the checker, because agents run it themselves.
 
 ### Additional Resources
 
@@ -958,6 +971,8 @@ into one Node file that passes the Mermaid.js part of the regression corpus.
     *   It adds back the block's line offset, indent and quote prefix. Columns are UTF-16 code units,
         1-based.
     *   A `null` position anchors the error to `contentStartLine`, with `hasPosition: false`.
+    *   `FilePosition` carries both the file line and column, and the diagram-relative `diagramLine`
+        and `diagramColumn`.
 24. `src/core/renderers/types.ts` (Create). The `RendererAdapter` interface: `id`, `version`,
     `detectType(text)` and `check(text, policy) -> RawVerdict`. `RawVerdict` holds `ok`, `code`,
     `message`, `pos`, `spanStart`, `type` and `classHint`.
@@ -1076,6 +1091,8 @@ into one Node file that passes the Mermaid.js part of the regression corpus.
     *   **Controls:** the renderer switch, the status line and scrolling to the block at the cursor.
     *   **Keyboard and links:** diagrams can be reached with Tab. Link clicks go to the host, which asks
         before opening.
+    *   **Notices:** the layout badge (when `autoDirection` is on and Pele changes the layout) and the
+        "unsaved changes: agents check the saved file" note in the status line.
 57. `src/features/preview/webview/styles.css` (Create). The layout, the `--pele-*` variables set from
     the `--vscode-*` variables (from the theme map), high-contrast borders and the error colour.
 58. `src/features/export/host/export-command.ts` (Create). "Diagramist: Export Diagram…".
@@ -1174,7 +1191,12 @@ into one Node file that passes the Mermaid.js part of the regression corpus.
     *   troubleshooting;
     *   that it is unofficial.
 75. `docs/agents.md` (Create). Setup, pre-approving the read-only `check` tool, skill folders and
-    troubleshooting, for each agent: Claude Code, Gemini CLI and Codex.
+    troubleshooting, for each agent: Claude Code, Gemini CLI and Codex. It also covers:
+    *   **The off switch:** "Disconnect agent".
+    *   **A support tier table:**
+        *   supported: the three agents in a terminal on Linux, macOS and Windows;
+        *   best effort: their VS Code panels, Remote-SSH and WSL;
+        *   unsupported: VS Code for the Web.
 76. `docs/ci.md` (Create). A pre-commit hook and a GitHub Actions example using `diagramist check`.
 77. `CONTRIBUTING.md` (Create). The folder map, import rules, test commands, the renderer upgrade
     procedure (regression corpus, "Validator changes" in the changelog) and the release steps.
@@ -1205,5 +1227,19 @@ into one Node file that passes the Mermaid.js part of the regression corpus.
     *   a Marketplace publisher ID and an Open VSX namespace;
     *   an npm account that can publish `diagramist` (the name was free on 2026-11-11);
     *   the three release tokens as repository secrets.
+
+### Reconciliation with the brief (2026-11-11)
+
+The draft was compared with [concepts_brief.md](concepts_brief.md), and seven differences were found.
+The author accepted the proposed resolution for each:
+
+1.  **Positions:** results now carry diagram-relative positions as well as file positions.
+2.  **Unsaved edits:** the checker can't see the editor. The preview's status line says when agents
+    are checking a saved file that differs from the editor.
+3.  **Per-type examples:** these live in `SKILL.md` (D8), not in an MCP resource.
+4.  **Error lists:** each renderer's verdict holds a list of errors, with at most one entry today.
+5.  **Off switch:** "Disconnect agent" is the off switch for agent tools, and is documented as such.
+6.  **Layout badge:** a badge appears when Pele changes a diagram's layout.
+7.  **Support tiers:** a support tier table goes in `docs/agents.md`.
 
 *Drafted with EGM*
