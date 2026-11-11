@@ -139,23 +139,8 @@ These are for v1.
 
 ## Open Questions
 
-*   **Question 1 (launch):** how do agents start the checker? Options are a published npm package, a
-    stable launcher kept in the extension's storage, or both.
-*   **Question 2 (preview surface):** Diagramist's own preview panel, VS Code's built-in Markdown
-    preview, or both?
-*   **Question 3 (targets):** how does a file say which renderers must pass? Options are a workspace
-    setting, a comment in the diagram, a guess from context (for example, a GitHub repository), or a
-    mix.
-*   **Question 4 (Mermaid.js version):** pin the newest 12.x, or match GitHub's current version?
-*   **Question 5 (PNG export location):** only from VS Code's preview pane, or also from the agent's
-    checker? The checker could export Pele drawings only, and would need a WebAssembly image converter
-    and a bundled font.
-*   **Question 6 (telemetry):** none, or opt-in with no diagram content?
-*   **Question 7 (CLI):** should v1 ship the command-line checker with linter-style output? It would
-    serve any agent with a shell, pre-commit hooks and CI.
-*   **Question 8 (agent guidance):** where do the instructions for agents live? Options are tool
-    descriptions only, one shared `SKILL.md` (Claude Code, Codex and Gemini CLI all read the format),
-    or per-agent packages.
+Questions 1–8 (launch, preview surface, targets, Mermaid.js version, export location, telemetry, CLI,
+agent guidance) were resolved on 2026-11-11 as decisions D1–D8. See the Technical Plan, section 9.
 
 Unknowns to verify while drafting:
 
@@ -193,7 +178,7 @@ Unknowns to verify while drafting:
 *   **Then**: Gemini calls the check by path, fixes the diagram until it passes, and reports the result.
     No network request is made.
 
-### CUJ 3: Codex or CI runs the command-line check (if question 7 is yes)
+### CUJ 3: Codex or CI runs the command-line check (decision D7)
 
 *   **Given**: A repository has diagrams in `docs/`.
 *   **When**: Codex runs `diagramist check docs/`, or a pre-commit hook runs it.
