@@ -639,9 +639,143 @@ file; C, a package per agent. The author took B.*
     copy that is out of date.
 *   **Later, without breaking anything:** per-agent packages (option C).
 
+## Alternatives Considered
+
+The sources are the brief's "Alternatives Weighed", the author's decisions after the review, the
+options the author passed over in D1–D8, and the existing tools found on 2026-11-11.
+
+### Alternative 1: A standalone app with its own web UI
+
+*   **Pros**: works from any browser, including a phone, and needs no VS Code.
+*   **Cons**: a server to run and secure, a second place to edit diagrams, and it sits away from where
+    agents work.
+*   **Reason for Rejection**: Rejected by author: they want to work inside VS Code.
+
+### Alternative 2: The extension calls Gemini CLI, or another agent CLI, to write diagrams
+
+*   **Pros**: a prompt box inside VS Code, with no separate agent session.
+*   **Cons**:
+    *   It ties the tool to one agent.
+    *   Starting an agent for each request takes seconds and breaks easily across the agents'
+        frequent releases.
+    *   It needs that agent's login on the machine.
+*   **Reason for Rejection**: Rejected by author: any agent should be able to drive Diagramist, so it
+    calls no AI model.
+
+### Alternative 3: Pele only (the shape after the Goldfish review)
+
+*   **Pros**: one renderer, about 7 MB of memory, checks in under a millisecond, and no browser
+    stand-in.
+*   **Cons**: GitHub, Notion and documentation sites draw with Mermaid.js, so a diagram that passes
+    Pele can still fail there.
+*   **Reason for Rejection**: Rejected by author on 2026-11-11. The destinations include GitHub, Notion
+    and documentation sites, so Diagramist checks and previews with both renderers.
+
+### Alternative 4: The names "Pele Renderer", "Pele Diagrams for VS Code", "Diagramsmith" and "Lavagram"
+
+*   **Pros**: the first two say what the tool is built on, and the last two were free on every registry
+    checked.
+*   **Cons**: the first two read as official Obsidian products and put third-party names (Pele, VS Code)
+    into a permanent ID. With Mermaid.js added, they also describe only half the tool.
+*   **Reason for Rejection**: Rejected by author, in favour of "Diagramist".
+
+### Alternative 5: Contribute to an existing Pele preview extension
+
+*   **Pros**: less new code and an existing user base. The candidates were
+    `pdanpdan.mermaid-pele-preview`, `bumkom.markdown-viewer-lite` and `saeris.markdown-mermaid-pele`.
+*   **Cons**: they are Pele-only previews, a few weeks old, with 42–130 installs each. None has an agent
+    checker, Mermaid.js, a CLI or export.
+*   **Reason for Rejection**: Not adopted. The author's later decisions (both renderers, an agent
+    checker, a CLI, export) go well beyond these previews. The author was not asked about contributing
+    upstream as a separate question; it is raised at this section's approval gate.
+
+### Alternative 6: Use an existing Pele CLI (`@ahmedelgabri/pele-cli`, `@simhozebs/pele-cli`)
+
+*   **Pros**: they already check and draw diagrams with Pele.
+*   **Cons**: Pele only, no MCP server, no mapping of positions into Markdown files, and no Mermaid.js.
+*   **Reason for Rejection**: Not adopted, for the same scope reasons as Alternative 5.
+
+### Alternative 7: Use an existing Mermaid MCP server
+
+*   **Pros**: agents can call them today.
+*   **Cons**: Mermaid.js only, with no Pele. Several draw through a headless browser, which is heavy.
+    None maps positions into files or ties into the editor.
+*   **Reason for Rejection**: Not adopted. They cover neither Pele nor the editor side of the loop.
+
+### Alternative 8: Offer the tools through VS Code's own tool APIs
+
+*   **Pros**: no separate program, and the tools sit next to the preview.
+*   **Cons**: `vscode.lm.registerTool` and the MCP server provider API reach only VS Code's built-in chat
+    (Copilot), not Claude Code, Gemini CLI or Codex.
+*   **Reason for Rejection**: Rejected on technical grounds in the Goldfish review. The same checker
+    can still be registered there later as an extra.
+
+### Alternative 9: A local web server inside the extension, linking agents and the preview live
+
+*   **Pros**: agents could drive the preview directly.
+*   **Cons**:
+    *   It needs a port, a token and protection against web pages calling it.
+    *   Every VS Code window runs its own server, so a request can reach the wrong window.
+    *   The server disappears when VS Code closes, and it fails in remote setups.
+*   **Reason for Rejection**: Rejected by author when accepting the brief's reshaped design on
+    2026-11-11.
+
+### Alternative 10: Load Pele or Mermaid.js from a CDN
+
+*   **Pros**: a smaller package.
+*   **Cons**: it breaks offline use, needs a looser Content Security Policy, and lets the renderer
+    change without a release.
+*   **Reason for Rejection**: Rejected on technical grounds in the Goldfish review. It also conflicts
+    with Goal 7.
+
+### Alternative 11: Render on the extension host's main thread
+
+*   **Pros**: simpler code.
+*   **Cons**: neither renderer has a time limit, so one slow diagram would freeze every extension in the
+    window.
+*   **Reason for Rejection**: Rejected on technical grounds in the Goldfish review. Pele's own docs
+    recommend a worker when a time limit is needed.
+
+### Alternative 12: Check Mermaid.js syntax with `@mermaid-js/parser`, without a browser stand-in
+
+*   **Pros**: no jsdom, so about 100 MB less memory per checker.
+*   **Cons**: version 2.0.1 parses only 12 types: architecture, cynefin, eventmodeling, gitGraph, info,
+    packet, pie, radar, railroad, treemap, treeView and wardley. It does not parse flowcharts, sequence,
+    class, state, ER, Gantt or the other common types (checked on 2026-11-11).
+*   **Reason for Rejection**: Rejected on technical grounds: it misses the most-used types. Worth
+    revisiting as it grows. It could then replace jsdom one diagram type at a time.
+
+### Alternative 13: Draw with Mermaid.js in the checker through a headless browser
+
+*   **Pros**: Mermaid.js drawings and exports without VS Code.
+*   **Cons**: a browser download of hundreds of megabytes, seconds to start, and far more memory.
+*   **Reason for Rejection**: Rejected on technical grounds for v1. Mermaid.js drawings come from VS
+    Code's panel (decision D5).
+
+### Options passed over in decisions D1–D8
+
+Each row was rejected by the author when making that decision. For D1 the author asked for the
+Elephant's pick before choosing.
+
+| Decision | Option not taken | Main drawback | Can it be added later? |
+| --- | --- | --- | --- |
+| D1 | B: launcher inside the extension | Needs VS Code installed, and is no use for CI | Yes, without breaking anything |
+| D1 | C: both npm and launcher | Two install paths and two releases to keep in step | Yes |
+| D2 | B: VS Code's built-in Markdown preview | Two surfaces, VS Code's preview security settings, double drawing with other Mermaid extensions | Yes, as an opt-in |
+| D2 | C: both | All of B's costs in v1 | Yes |
+| D3 | B: project file with folder rules | One more file to document; agents must know it exists | Yes, without breaking anything |
+| D3 | C: defaults by file type | Three layers of rules to explain | Possibly |
+| D4 | A: newest version only | Misses diagram types that GitHub lacks | Not needed: C includes it |
+| D4 | B: GitHub's version | Manual tracking, and more disagreement with Pele | No |
+| D5 | B: checker exports SVG and PNG | About 3 MB more, Pele only, and font-measuring work | Yes |
+| D5 | C: checker exports SVG only | Google Slides needs PNG | Yes |
+| D6 | B: opt-in telemetry | A collection service, a privacy policy, an exception to "no network", and low opt-in | Only by changing Goal 7 |
+| D7 | B: MCP server only | No CI or pre-commit use; agents need MCP set up | Not needed |
+| D8 | A: tool descriptions only | Too thin, and costs tokens on every turn | Not needed |
+| D8 | C: a package per agent | Three package formats to maintain | Yes |
+
 --------------------------------------------------------------------------------
 
-*Sections still to draft: Alternatives Considered, Non-Functional Requirements, Detailed
-Implementation Plan.*
+*Sections still to draft: Non-Functional Requirements, Detailed Implementation Plan.*
 
 *Drafted with EGM*
