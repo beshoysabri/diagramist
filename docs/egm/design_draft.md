@@ -449,7 +449,7 @@ Each feature exports one `register` function, and the extension's activation cal
 | D4 | Mermaid.js version policy (open question 4) | **decided: C, newest version plus warnings for newer types** |
 | D5 | Where PNG export runs (open question 5) | **decided: A, from the preview panel only** |
 | D6 | Telemetry (open question 6) | **decided: A, none** |
-| D7 | CLI in v1 (open question 7) | open |
+| D7 | CLI in v1 (open question 7) | **decided: A, yes** |
 | D8 | Where agent guidance lives (open question 8) | open |
 
 #### D1: agents start the checker from an npm package installed globally
@@ -598,6 +598,31 @@ author took A.*
 
     "Diagramist: Copy diagnostic report" includes these counts, and the user decides whether to share
     them in an issue.
+
+#### D7: the command-line checker ships in v1
+
+*Decided 2026-11-11. The options were: A, yes; B, the MCP server only. The author took A.*
+
+*   **Command.** `diagramist check <paths…>` takes files or folders. In folders it checks `.mmd`,
+    `.mermaid` and `.md` files and skips `node_modules` and hidden folders.
+*   **Output.**
+    *   Each problem is one line, `path:line:col: severity [renderer code] message`, followed by the
+        indented snippet and hint lines, the same as the text form in section 3.
+    *   Passing files are listed only with `--verbose`.
+    *   A summary line comes last.
+*   **Exit codes:**
+    *   0: every target renderer passes;
+    *   1: at least one error;
+    *   2: a tool or usage problem, such as a missing file or a timeout.
+*   **Options:**
+    *   `--json` prints one result per file in the section 3 format, one JSON object per line;
+    *   `--oldest-mermaid <version>` (D4);
+    *   `--verbose`.
+*   **Same engine.** The core and worker are shared with the MCP server, so the CLI and the agent tool
+    always agree.
+*   **Docs** include a pre-commit hook and a CI example.
+*   **Stability.** The text output is for people and agents. Scripts should use `--json`, whose fields
+    follow the result format's versioning rules.
 
 --------------------------------------------------------------------------------
 
