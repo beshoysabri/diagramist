@@ -445,7 +445,7 @@ Each feature exports one `register` function, and the extension's activation cal
 | --- | --- | --- |
 | D1 | How agents start the checker (open question 1) | **decided: A, npm package, installed globally** |
 | D2 | Preview surface (open question 2) | **decided: A, Diagramist's own preview panel** |
-| D3 | How targets are declared (open question 3) | open |
+| D3 | How targets are declared (open question 3) | **decided: A, both by default, comment to opt out** |
 | D4 | Mermaid.js version policy (open question 4) | open |
 | D5 | Where PNG export runs (open question 5) | open |
 | D6 | Telemetry (open question 6) | open |
@@ -518,6 +518,21 @@ author took A.*
     two values, with a version number.
 *   **Not in v1:** drawing diagrams inline in VS Code's built-in Markdown preview. It can be added later
     as an opt-in without breaking anything.
+
+#### D3: both renderers must pass unless the diagram opts out
+
+*Decided 2026-11-11. The options were: A, both by default with a comment to opt out; B, A plus a
+project file with folder rules; C, defaults by file type plus both overrides. The author took A.*
+
+*   **Default targets:** Mermaid.js and Pele, so a passing diagram works on GitHub and Notion and also
+    exports with Pele.
+*   **Opting out:** a comment line inside the diagram: `%% diagramist: targets=mermaid`,
+    `targets=pele` or `targets=mermaid,pele`. It can be the first line or anywhere in the diagram. A
+    test on 2026-11-11 showed both renderers accept the line at the top and after the type line.
+*   **Showing the source.** Each block's result shows its targets and where they came from: "default",
+    or "comment on line N".
+*   **Bad comments.** A comment with unknown values leaves the default in place and adds a warning.
+*   **Later, without breaking anything:** a project file with folder rules (option B).
 
 --------------------------------------------------------------------------------
 
