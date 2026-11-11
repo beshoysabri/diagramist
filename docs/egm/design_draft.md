@@ -443,7 +443,7 @@ Each feature exports one `register` function, and the extension's activation cal
 
 | # | Decision | Status |
 | --- | --- | --- |
-| D1 | How agents start the checker (open question 1) | being decided |
+| D1 | How agents start the checker (open question 1) | **decided: A, npm package, installed globally** |
 | D2 | Preview surface (open question 2) | open |
 | D3 | How targets are declared (open question 3) | open |
 | D4 | Mermaid.js version policy (open question 4) | open |
@@ -451,6 +451,38 @@ Each feature exports one `register` function, and the extension's activation cal
 | D6 | Telemetry (open question 6) | open |
 | D7 | CLI in v1 (open question 7) | open |
 | D8 | Where agent guidance lives (open question 8) | open |
+
+#### D1: agents start the checker from an npm package installed globally
+
+*Decided 2026-11-11. The author was shown three options: A, an npm package; B, a launcher inside the
+extension; C, both. After asking which one the Elephant would pick, the author took A.*
+
+*   **The package.** The checker is published to npm as `diagramist`. Its command `diagramist` has the
+    subcommands `mcp` (the stdio MCP server), `--version` and `--self-test`. Decision D7 decides
+    whether it also offers `check` for shells and CI.
+*   **How agents run it.** Agent settings run `diagramist mcp` from a global install
+    (`npm install -g diagramist`), not `npx`. A test on 2026-11-11 showed that `npx` keeps npm's own
+    process running next to the checker, adding about 96 MB for every agent session.
+*   **Connecting an agent.** "Diagramist: Connect AI agent" checks for `diagramist` on the PATH. If it
+    is missing, it offers to run `npm install -g diagramist@<the extension's version>`, then runs the
+    agent's own `mcp add` command at user scope, or shows it for the user to copy.
+*   **Versions.** The extension and the npm package are built from the same repository and the same
+    version tag. "Check agent setup" warns when the installed checker's version differs from the
+    extension's.
+*   **When it fails:** without Node, or without access to the npm registry for the one-time install.
+    The launcher from option B can be added later without breaking anything, if locked-down networks
+    need it.
+
+Resource use, measured on 2026-11-11 (Node 22, resident memory of one process):
+
+| Checker state | Memory |
+| --- | --- |
+| Started, nothing loaded | about 56 MB |
+| Pele loaded, one diagram drawn | about 63 MB |
+| Mermaid.js and jsdom loaded, two checks | about 155–159 MB |
+
+So the checker loads Mermaid.js only on the first check that needs it, and not at all when Mermaid.js
+is not a target for the file. Each agent session starts its own checker.
 
 --------------------------------------------------------------------------------
 
