@@ -1,5 +1,9 @@
 # Feature concept: Pele Diagrams for VS Code
 
+> Renamed **Diagramist** on 2026-11-11, with Mermaid.js added next to Pele and export in scope.
+> See "Decisions after the review" in [concepts_brief.md](concepts_brief.md). This file keeps the
+> hypothesis as it was first confirmed.
+
 * **Author:** Beshoy Sabri
 * **Date:** 2026-11-11
 * **Status:** anchored working hypothesis, confirmed by the author as the input for an EGM

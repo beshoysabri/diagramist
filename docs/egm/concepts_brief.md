@@ -1,9 +1,43 @@
-# Pele Diagrams for VS Code
+# Diagramist (first named Pele Diagrams for VS Code)
 
 * **Author:** Beshoy Sabri
 * **Date:** 2026-11-11
-* **Stage:** EGM brainstorm (`egm-brainstorm`). Goldfish review done; waiting for the author to align.
+* **Stage:** EGM brainstorm finished; the author aligned on 2026-11-11 and chose `egm-draft`. Read
+  "Decisions after the review" first: it changes parts of the scope below.
 * **Input:** [feature-concept.md](feature-concept.md) (the anchored hypothesis the author confirmed)
+
+## Decisions after the review (2026-11-11)
+
+The author made these decisions after the Goldfish review. Where they conflict with the analysis or
+the goals further down, these decisions win.
+
+1. **Destinations.** Finished diagrams go to GitHub, Notion and documentation sites, which draw
+   Mermaid with Mermaid.js. They also go into slides and documents as exported images. Obsidian is
+   not a target.
+2. **Both renderers.** Diagramist checks and previews diagrams with both Mermaid.js and Pele, and each
+   result says which renderer reported what. This reverses the proposed non-goal "Validating against
+   Mermaid.js".
+3. **Export is in v1.** SVG and PNG export for slides and documents is in v1 scope, reversing the
+   proposed non-goal. The author was told this follows from decisions 1 and 2, and did not object.
+4. **New name.** The project is called **Diagramist**. The repository moved to
+   https://github.com/beshoysabri/diagramist, and GitHub redirects the old address. The name contains
+   neither "Pele", "Mermaid" nor "VS Code", which settles most of finding 13. The internal ID and
+   prefix are `diagramist`.
+
+A test of Mermaid.js 12.3.0 in plain Node on the same day showed:
+
+* **Checking needs jsdom.** `mermaid.parse()` checks syntax in Node only when jsdom, a library that
+  imitates a browser, is loaded. Without it, some valid diagrams crash the check with
+  `DOMPurify.addHook is not a function`.
+* **Speed and positions.** With jsdom, a check takes about 15–40 ms; Pele takes under 1 ms. Mermaid.js
+  errors carry a 0-based `hash.line` and a 1-based `loc` with first and last line and column.
+* **Drawing needs a real browser.** Mermaid.js cannot lay out a diagram in Node, so Mermaid.js
+  drawings, for the preview and for export, can only come from VS Code's preview pane. Pele can draw
+  anywhere.
+* **The two renderers disagree on real input.** A Sankey value of `abc` passes Mermaid.js and fails
+  Pele. ZenUML fails both, because it is an external plugin.
+* **Versions differ.** GitHub and Notion run their own Mermaid.js versions, so a pinned Mermaid.js
+  checks against that version, not exactly theirs.
 
 ## Overview
 
@@ -379,6 +413,9 @@ assumptions the reviewers flagged.
   from a different folder, so one skill file could carry the agent guidance for all three.
 
 ## Goals vs. Non-Goals
+
+Superseded in part by "Decisions after the review". Mermaid.js checking and preview, and SVG/PNG
+export, are now in scope.
 
 * **In-Scope Goals:**
   * Any agent that supports MCP can check a Mermaid diagram file locally with Pele and get, in one
