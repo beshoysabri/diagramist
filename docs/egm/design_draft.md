@@ -444,7 +444,7 @@ Each feature exports one `register` function, and the extension's activation cal
 | # | Decision | Status |
 | --- | --- | --- |
 | D1 | How agents start the checker (open question 1) | **decided: A, npm package, installed globally** |
-| D2 | Preview surface (open question 2) | open |
+| D2 | Preview surface (open question 2) | **decided: A, Diagramist's own preview panel** |
 | D3 | How targets are declared (open question 3) | open |
 | D4 | Mermaid.js version policy (open question 4) | open |
 | D5 | Where PNG export runs (open question 5) | open |
@@ -483,6 +483,41 @@ Resource use, measured on 2026-11-11 (Node 22, resident memory of one process):
 
 So the checker loads Mermaid.js only on the first check that needs it, and not at all when Mermaid.js
 is not a target for the file. Each agent session starts its own checker.
+
+In Node, the two renderers must not share browser stand-ins. With jsdom's `window` and `document`
+present, Pele assumes it is in a browser and tries jsdom's canvas, which is not implemented (seen in a
+test on 2026-11-11). The checker therefore gives Pele an explicit text measurer that uses Pele's
+built-in width table, and keeps jsdom's globals limited to the Mermaid.js adapter.
+
+#### D2: one Diagramist preview panel
+
+*Decided 2026-11-11 (options: A, own panel; B, VS Code's built-in Markdown preview; C, both). The
+author took A.*
+
+*   **Opening it.** "Diagramist: Open Preview to the Side" appears as a button in the editor title bar
+    for `.mmd`, `.mermaid` and Markdown files. Its keybinding is limited to those files, so it never
+    replaces Markdown's own preview shortcut.
+*   **One panel.** It follows the active editor, with a lock toggle. It shows every diagram in the
+    file in order, each labelled with its block number and line, and scrolls to the diagram at the
+    cursor.
+*   **Renderer switch.** Pele or Mermaid.js, per panel. Both draw in the webview.
+*   **Updates.** It redraws from the editor's text after a pause in typing (300 ms for Pele, up to
+    1 second for Mermaid.js) and when files change on disk. It never takes focus. When an agent changes
+    a file that isn't shown, the status bar says so.
+*   **Status line.** It shows the file, block, renderer and its version, the update time, a short
+    content hash and the number of warnings.
+*   **Theme.** It follows VS Code's light, dark and high-contrast themes. Pele gets them through the
+    `--pele-*` to `--vscode-*` map; Mermaid.js gets them as its "base" theme with `themeVariables` built
+    from the same colours.
+*   **Security.** The strict policy in section 5. Export buttons live in this panel (decision D5).
+*   **Accessibility.**
+    *   Diagrams can be reached with Tab.
+    *   Errors are announced to screen readers and shown as text as well as colour.
+    *   Diagram titles and descriptions (`accTitle` and `accDescr`) are kept.
+*   **Restoring.** After a reload the panel reopens on the same file and block. It stores only those
+    two values, with a version number.
+*   **Not in v1:** drawing diagrams inline in VS Code's built-in Markdown preview. It can be added later
+    as an opt-in without breaking anything.
 
 --------------------------------------------------------------------------------
 
