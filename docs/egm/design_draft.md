@@ -294,7 +294,8 @@ needs a browser page, and nothing that works only in Node.
 | `result` | The result format (version 1). It builds results and prints them as short text and as JSON. |
 | `policy` | Fixed render and security settings: Pele `images: false` and `autoDirection: false`, a fixed `now` for checks, Mermaid.js `securityLevel: "strict"`, and size limits that can only be lowered. |
 | `hints` | One-line hints for each error code. It recognises types neither renderer supports, such as ZenUML, and fence lines pasted in as diagram text. |
-| `targets` | Decides which renderers must pass for a block. The mechanism is decision D3. |
+| `targets` | Decides which renderers must pass for a block: both by default, or what the block's `%% diagramist: targets=…` comment says (decision D3). |
+| `compat` | The table of diagram types with the Mermaid version that introduced each, and the warnings for types newer than the oldest destination (decision D4). |
 | `theme` | Maps VS Code theme colours to Pele's `--pele-*` variables and to a Mermaid.js theme, and holds the fixed light and dark export themes. |
 
 Mermaid.js needs a stand-in for the browser when it runs in Node. The Node entry points (the checker
@@ -359,7 +360,7 @@ Rules:
 The MCP server offers one read-only tool, `check`, marked `readOnlyHint: true`, `idempotentHint: true`
 and `openWorldHint: false`. Its description says when to use it: after writing or editing any Mermaid
 diagram, call `check` on the file and fix errors until it passes; after three failures on the same
-error, stop and ask the user. Decision D5 decides whether there is also an `export` tool.
+error, stop and ask the user. There is no `export` tool in v1 (decision D5).
 
 ### 4. Time limits and load
 
@@ -400,10 +401,12 @@ error, stop and ask the user. Decision D5 decides whether there is also an `expo
 ### 7. Code layout (feature-based)
 
 ```text
+skills/diagramist/SKILL.md   agent guidance (decision D8)
 src/
   core/                      shared, runtime-neutral (section 2)
   features/
     checker/     server/     stdio MCP server
+    cli/         server/     diagramist check (decision D7)
     diagnostics/ host/       Problems panel
     preview/     host/ webview/
     export/      host/ webview/
@@ -450,7 +453,7 @@ Each feature exports one `register` function, and the extension's activation cal
 | D5 | Where PNG export runs (open question 5) | **decided: A, from the preview panel only** |
 | D6 | Telemetry (open question 6) | **decided: A, none** |
 | D7 | CLI in v1 (open question 7) | **decided: A, yes** |
-| D8 | Where agent guidance lives (open question 8) | open |
+| D8 | Where agent guidance lives (open question 8) | **decided: B, short tool descriptions plus one shared `SKILL.md`** |
 
 #### D1: agents start the checker from an npm package installed globally
 
@@ -623,6 +626,33 @@ author took A.*
 *   **Docs** include a pre-commit hook and a CI example.
 *   **Stability.** The text output is for people and agents. Scripts should use `--json`, whose fields
     follow the result format's versioning rules.
+
+#### D8: short tool descriptions plus one shared `SKILL.md`
+
+*Decided 2026-11-11. The options were: A, tool descriptions only; B, descriptions plus a shared skill
+file; C, a package per agent. The author took B.*
+
+*   **The tool description** for `check` stays under about 80 words, because agents receive it on every
+    turn. It says when to call `check`, and when to stop and ask the user.
+*   **The skill file.** One file, `skills/diagramist/SKILL.md`, ships in the npm package and the
+    extension. Its frontmatter description reads: "Use when writing or editing Mermaid diagrams: check
+    them with Diagramist and fix errors before finishing." The body, about 150 lines at most, covers:
+    *   when to check: after every change to a diagram;
+    *   how to check: the MCP tool `check` with a path, or `diagramist check <path>` in a shell;
+    *   how to read results: renderers, error classes, `retry`, warnings, and errors reported one line
+        late;
+    *   the `%% diagramist: targets=…` comment;
+    *   the rule to stop after three failures on the same error;
+    *   short tips per diagram type;
+    *   what not to do: don't rewrite a diagram for "unsupported" or "too-large" errors, don't add
+        `%%{init}%%` theme blocks, and don't use HTML labels.
+*   **Installing it.** "Connect AI agent" copies the skill into the chosen agent's user-level skills
+    folder, after the user agrees: `~/.claude/skills/diagramist/` for Claude Code, and the documented
+    skills folders for Codex and Gemini CLI (to be confirmed in the Detailed Implementation). The
+    README shows how to copy it by hand.
+*   **Versions.** The skill names the Diagramist version it was written for. "Check agent setup" flags a
+    copy that is out of date.
+*   **Later, without breaking anything:** per-agent packages (option C).
 
 --------------------------------------------------------------------------------
 
