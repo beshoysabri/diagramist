@@ -447,7 +447,7 @@ Each feature exports one `register` function, and the extension's activation cal
 | D2 | Preview surface (open question 2) | **decided: A, Diagramist's own preview panel** |
 | D3 | How targets are declared (open question 3) | **decided: A, both by default, comment to opt out** |
 | D4 | Mermaid.js version policy (open question 4) | **decided: C, newest version plus warnings for newer types** |
-| D5 | Where PNG export runs (open question 5) | open |
+| D5 | Where PNG export runs (open question 5) | **decided: A, from the preview panel only** |
 | D6 | Telemetry (open question 6) | open |
 | D7 | CLI in v1 (open question 7) | open |
 | D8 | Where agent guidance lives (open question 8) | open |
@@ -557,6 +557,31 @@ docs say to render an `info` diagram to see it.*
     *   Until a version is set, only beta types (keywords ending in `-beta`) are flagged, with the
         warning "beta diagram type; may not render on sites with older Mermaid".
     *   These are always warnings, never errors.
+
+#### D5: export from the preview panel only
+
+*Decided 2026-11-11. The options were: A, the preview panel only; B, the panel plus SVG and PNG from
+the checker; C, the panel plus SVG only from the checker. The author took A.*
+
+*   **The command.** "Diagramist: Export Diagram…" runs from a panel button or the command palette. It
+    asks for:
+    *   the diagram, when the file has several;
+    *   the renderer: Pele or Mermaid.js;
+    *   the format: SVG or PNG;
+    *   the theme: light, dark, or VS Code's current theme;
+    *   for PNG, the scale: 1× to 4×, default 2×.
+
+    VS Code's save dialog suggests a name such as `README-2.pele.png`, next to the source file.
+*   **SVG.** Colours and fonts are written into the file as plain values, read from the drawn diagram.
+    The file therefore doesn't depend on CSS variables, which some slide tools don't support. The font
+    is a common stack, such as Helvetica, Arial or sans-serif, that matches the preview.
+*   **PNG.** The panel's browser draws the SVG onto a canvas at the chosen scale. Pele's SVG contains
+    no `foreignObject` (checked on 2026-11-11), and Mermaid.js exports are drawn with
+    `htmlLabels: false`, so the canvas stays readable.
+*   **Saving.** The panel sends the bytes to the extension host, which writes the file. The panel itself
+    never touches the disk.
+*   **Not in v1:** export by agents or scripts. A checker `export` tool (option B, or SVG-only option C)
+    can be added later without breaking anything.
 
 --------------------------------------------------------------------------------
 
