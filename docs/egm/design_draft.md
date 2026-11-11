@@ -448,7 +448,7 @@ Each feature exports one `register` function, and the extension's activation cal
 | D3 | How targets are declared (open question 3) | **decided: A, both by default, comment to opt out** |
 | D4 | Mermaid.js version policy (open question 4) | **decided: C, newest version plus warnings for newer types** |
 | D5 | Where PNG export runs (open question 5) | **decided: A, from the preview panel only** |
-| D6 | Telemetry (open question 6) | open |
+| D6 | Telemetry (open question 6) | **decided: A, none** |
 | D7 | CLI in v1 (open question 7) | open |
 | D8 | Where agent guidance lives (open question 8) | open |
 
@@ -582,6 +582,22 @@ the checker; C, the panel plus SVG only from the checker. The author took A.*
     never touches the disk.
 *   **Not in v1:** export by agents or scripts. A checker `export` tool (option B, or SVG-only option C)
     can be added later without breaking anything.
+
+#### D6: no telemetry
+
+*Decided 2026-11-11. The options were: A, none; B, opt-in telemetry with no diagram content. The
+author took A.*
+
+*   No part of Diagramist sends data anywhere, which keeps Goal 7 without exceptions. The README says
+    so.
+*   For debugging, the extension and the checker keep local counts:
+    *   checks run;
+    *   errors by renderer and code;
+    *   attempts until the first pass;
+    *   repeated identical errors.
+
+    "Diagramist: Copy diagnostic report" includes these counts, and the user decides whether to share
+    them in an issue.
 
 --------------------------------------------------------------------------------
 
