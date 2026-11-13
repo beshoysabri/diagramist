@@ -1,5 +1,5 @@
 // The only core code that imports `mermaid`. Checks a diagram's syntax with mermaid.parse().
-// It needs a browser-like global environment, which its host provides (jsdom in Node).
+// It needs browser objects as globals, which its host provides (in Node, src/platform/node/dom-standin.ts).
 import mermaid from "mermaid";
 import { LIMITS, MERMAID_CHECK_CONFIG } from "../../policy/policy.js";
 import { cleanLangiumParserMessage, cleanLexerMessage, cleanParserMessage, oneLine } from "../shared/messages.js";

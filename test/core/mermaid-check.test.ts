@@ -1,4 +1,4 @@
-// Runs in a jsdom environment (vitest.config.ts): Mermaid.js needs browser-like globals in Node.
+// Runs with the check worker's browser stand-in installed (vitest.config.ts): Mermaid.js needs browser objects in Node.
 import { describe, expect, it } from "vitest";
 import { toFilePosition } from "../../src/core/positions/map-position.js";
 import { checkWithMermaid, mapMermaidError } from "../../src/core/renderers/mermaid/check.js";

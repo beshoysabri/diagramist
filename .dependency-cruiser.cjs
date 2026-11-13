@@ -50,10 +50,10 @@ module.exports = {
       to: { path: "^node_modules/markdown-it/" },
     },
     {
-      name: "jsdom-only-in-dom-standin",
+      name: "linkedom-only-in-dom-standin",
       severity: "error",
       from: { pathNot: "^src/platform/node/dom-standin\\.ts$" },
-      to: { path: "^node_modules/jsdom/" },
+      to: { path: "^node_modules/linkedom/" },
     },
     {
       name: "draw-only-from-webview",

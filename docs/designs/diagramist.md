@@ -258,13 +258,11 @@ flowchart LR
     A["agent loop"]
   end
   subgraph CK["diagramist (Node): CLI, or MCP server if it ships"]
-    C1["coordinator"] --> PW1["Pele worker"]
-    C1 --> MW1["Mermaid.js worker with jsdom"]
+    C1["coordinator"] --> W1["check worker: Pele, and Mermaid.js with linkedom"]
   end
   subgraph VS["VS Code"]
     subgraph EH["extension host"]
-      DG["diagnostics coordinator"] --> PW2["Pele worker"]
-      DG --> MW2["Mermaid.js worker with jsdom"]
+      DG["diagnostics coordinator"] --> W2["check worker: Pele, and Mermaid.js with linkedom"]
       AS["agent setup, report, version check"]
     end
     subgraph WV["preview webview (browser)"]
@@ -280,19 +278,20 @@ flowchart LR
 
 *Checked on 2026-11-13 with Pele 1.13.0 and Mermaid.js 12.3.0: both accept this diagram.*
 
-Code runs in five kinds of place:
+Code runs in four kinds of place:
 
 *   **The checker process.** Agents start it; it never contacts VS Code.
 *   **VS Code's extension host.** It runs diagnostics, agent setup and the version check.
 *   **The preview webview.** A browser page that draws with Pele or Mermaid.js and produces exports.
-*   **A Pele worker thread** inside each Node process that checks diagrams.
-*   **A Mermaid.js worker thread** inside each Node process that checks diagrams. It loads jsdom, a
-    library that imitates a browser, which Mermaid.js needs in Node.
+*   **A check worker thread** inside each Node process that checks diagrams. It runs Pele and
+    Mermaid.js. Mermaid.js needs a browser in Node, so the worker first installs linkedom, a small
+    library that imitates one.
 
-Pele and Mermaid.js run in separate workers. With jsdom's browser globals present, Pele assumes a
-browser and tries jsdom's canvas, which is not implemented (seen on 2026-11-11). Phase P2 tests one
-alternative: give Pele an explicit text measurer through its public `measurer` option. If that works,
-one worker runs both renderers, and this diagram and section 3 change to match.
+One worker runs both renderers. Pele gets an explicit text measurer through its public `measurer`
+option (width = characters × font size × 0.6), so it never looks for a canvas in the stand-in. P2
+chose linkedom from three candidates and measured this layout against one worker per renderer: it
+saves 10 to 16 MB and one start-up, and costs about 1 ms per diagram
+([packaging notes](packaging-notes.md)).
 
 The agent and VS Code never talk to each other. They meet only through files: the agent edits and
 saves a file; the extension checks saved files and previews the editor text.
@@ -320,7 +319,7 @@ without the DOM library and without Node types.
 | Layer | Contents |
 | --- | --- |
 | `src/draw/` (browser only) | `pele-draw.ts` (Pele `mount`, with its own error display), `mermaid-draw.ts` (`mermaid.render`) and `theme-map.ts`. Only webview code imports this layer. |
-| `src/platform/node/` | The coordinator, the worker pool, worker message types, file reading, the jsdom loader and the stderr logger. |
+| `src/platform/node/` | The coordinator, the worker pool, worker message types, file reading, the browser stand-in (`dom-standin.ts`, linkedom) and the stderr logger. |
 | `src/platform/vscode/` | The log channel, settings, Workspace Trust and the in-memory counts. |
 | `src/platform/messages.ts` | Type-only definitions of the messages between the extension host and the webview. |
 
@@ -336,26 +335,26 @@ extension host.
     1.  Resolve and validate the path (section 6).
     2.  Read the file and find blocks.
     3.  Resolve each block's targets.
-    4.  Send the block to the Pele worker and the Mermaid.js worker at the same time.
+    4.  Send the block to the check worker, which checks it with Pele and then Mermaid.js.
     5.  Merge both verdicts into a `BlockResult`.
 
     Blocks of one file are checked in order.
-*   **Starting workers:**
-    *   A worker starts on the first diagram the process sees. It loads its renderer and posts
-        `ready`.
+*   **Starting the worker:**
+    *   The check worker starts on the first diagram the process sees. It installs the stand-in,
+        loads both renderers and posts `ready`. That took 0.2 to 0.6 s in P2.
     *   The start-up budget is 20,000 ms. If a worker misses it, the worker is stopped, the block gets
         class `tool` and code `start-timeout`, and the next request starts a fresh worker.
-*   **Time limit per block:** 2,000 ms, counted from when a ready worker receives the block. On
-    timeout, the worker is stopped and the block gets `tool` / `timeout`. Requests still queued for
-    that worker go to a fresh worker; they are not failed.
+*   **Time limit per block:** 2,000 ms for both renderers, counted from when a ready worker receives
+    the block. On timeout, the worker is stopped. A renderer that already posted its verdict keeps
+    it; the other gets `tool` / `timeout`. Requests still queued for that worker go to a fresh worker;
+    they are not failed.
 *   **Crashes:** if a worker exits or throws, the block gets `tool` / `crash`, and the worker restarts.
 *   **Messages**, defined in `src/platform/node/worker-messages.ts`:
     *   to a worker: `{ type: "check", id, text }`;
-    *   from a worker: `{ type: "ready", renderer, version }`, `{ type: "result", id, verdict }`,
-        `{ type: "log", level, message }`.
+    *   from the worker: `{ type: "ready", versions: { mermaid, pele } }`, one
+        `{ type: "result", id, renderer, verdict }` per renderer, and `{ type: "log", level, message }`.
 *   **Queues:**
-    *   The CLI and the MCP server keep a first-in, first-out queue per worker and never drop a
-        request.
+    *   The CLI and the MCP server keep a first-in, first-out queue and never drop a request.
     *   The extension's diagnostics keep at most 8 queued requests per window. A newer request for
         the same file replaces an older one that hasn't started; the replaced request ends as
         `superseded`, which is internal and never shown.
@@ -570,7 +569,7 @@ README.md:42:15: error [Mermaid.js parse] Expecting "]", got end of line
 ```text
 skills/diagramist/SKILL.md
 src/
-  entries/          cli.ts, extension.ts, webview.ts, pele-worker.ts, mermaid-worker.ts
+  entries/          cli.ts, extension.ts, webview.ts, check-worker.ts
   core/             blocks, positions, renderers/{mermaid,pele}/check, result, policy, hints,
                     targets, compat, samples
   draw/             pele-draw.ts, mermaid-draw.ts, theme-map.ts          (browser only)
@@ -594,7 +593,7 @@ src/
     `features/preview/webview/**` and `entries/webview.ts` import `draw/**`.
 *   **Platform:**
     *   `platform/node/**` imports `core/**` and Node built-ins, and never `vscode` or
-        `platform/vscode/**`. Only `platform/node/dom-standin.ts` imports `jsdom`.
+        `platform/vscode/**`. Only `platform/node/dom-standin.ts` imports `linkedom`.
     *   `platform/vscode/**` may import `vscode` and `core/**`.
     *   `platform/messages.ts` has no runtime imports.
 *   **Features:** they never import each other.
@@ -618,12 +617,13 @@ src/
     the bundles:
     *   `extension.cjs` (CommonJS, `vscode` external);
     *   `webview.js` (an IIFE for the browser);
-    *   `cli.mjs`, `pele-worker.mjs` and `mermaid-worker.mjs` (ES modules for Node).
+    *   `cli.mjs` and `check-worker.mjs` (ES modules for Node).
 *   **Node 22.12 or later at run time.** Mermaid.js 12.3.0 declares `node >=22.12.0`; Pele only needs
-    `>=20`. Development also needs Node 22, because Vitest 5 and dependency-cruiser 18 require it.
-    jsdom 31.0.0 declares `^22.22.2 || ^24.15.0 || >=26`; P2 records the final minimum for the chosen
-    browser stand-in, and the oldest VS Code whose extension host meets it. Checked on 2026-11-13.
-*   **Pinned versions.** `mermaid` 12.3.0, `pele` 1.13.0, `markdown-it` 15.0.3 and `jsdom` 31.0.0 are
+    `>=20` and linkedom `>=16`. Development also needs Node 22, because Vitest 5 and dependency-cruiser
+    18 require it. The extension host must meet the same minimum: VS Code 1.101 (Electron 35.5.1,
+    Node 22.15.1) is the oldest that does, so `engines.vscode` is `^1.101.0`. P2 ran the bundled check
+    worker on Node 22.12.0 and 22.15.1. Checked on 2026-11-13.
+*   **Pinned versions.** `mermaid` 12.3.0, `pele` 1.13.0, `markdown-it` 15.0.3 and `linkedom` 0.18.15 are
     pinned exactly.
 *   **Upgrade policy.** An upgrade that changes any verdict is at least a minor release, with a
     "Validator changes" changelog entry. A major version of either renderer means a Diagramist major
@@ -848,9 +848,9 @@ CA-06.*
 *   **Reason for Rejection**: Rejected on technical grounds. Pele's security page recommends a worker
     when a time limit is needed.
 
-### Alternative 12: Check Mermaid.js syntax with `@mermaid-js/parser`, without jsdom
+### Alternative 12: Check Mermaid.js syntax with `@mermaid-js/parser`, without a browser stand-in
 
-*   **Pros**: no browser stand-in in the Mermaid.js worker.
+*   **Pros**: no browser stand-in in the check worker.
 *   **Cons**: version 2.0.1 parses only 12 types: architecture, cynefin, eventmodeling, gitGraph, info,
     packet, pie, radar, railroad, treemap, treeView and wardley. It does not parse flowchart,
     sequence, class, state, ER, Gantt or other common types (checked on 2026-11-11).
@@ -888,7 +888,7 @@ CA-06.*
 | R2 | The renderers disagree | Pele rejects some diagrams Mermaid.js accepts, and the reverse | Mermaid.js decides by default; Pele failures are warnings until a Pele export (D3) | Pele exports may need edits |
 | R3 | Launch failures | `diagramist` not found or not runnable: Windows `.cmd` shims, Node version managers, EACCES, no Node | A Windows `cmd /c` form; `docs/agents.md` covers the version manager and EACCES cases; the version check (D1) | Setups outside the documented cases |
 | R4 | Version drift | The extension updates itself; the global checker does not | The version check at activation (D1); every result names its versions | Until the user updates, the editor and the agent may disagree |
-| R5 | Memory per agent session | About 60 MB idle and about 160 MB with Mermaid.js, measured on 2026-11-11 in one thread; workers add more | P2 measures the real layout and sets a budget; workers start only on the first diagram | Many parallel sessions multiply the cost |
+| R5 | Memory per agent session | A checker process uses about 55 to 65 MB before its worker starts, 125 to 145 MB once it is ready, 145 to 165 MB after typical diagrams and 195 to 230 MB with every diagram type loaded (P2, Linux and macOS; Windows reports less; [packaging notes](packaging-notes.md)) | linkedom, the lightest stand-in, and one worker for both renderers (P2); the worker starts only on the first diagram; the 256 MB budget in the NFRs | Many parallel sessions multiply the cost |
 | R6 | Reading arbitrary files | A pre-approved tool could read files the user didn't intend | Diagram file types only, regular files, real paths; untrusted labels (section 6) | Any diagram file the user's account can read can be checked |
 | R7 | One diagram freezes the preview | The webview draws without a time limit | A typing pause; the 50,000-character and 5,000-edge limits; the last good drawing kept | A pathological diagram can stall the preview panel (not VS Code itself) until it is closed |
 | R8 | Supply chain | The extension offers `npm install -g diagramist`, so the npm name and its publish token matter | Reserve the name before P3; publish only from CI, with provenance and 2FA | A compromised npm account |
@@ -925,9 +925,11 @@ CA-06.*
 *   **Performance and resource use:**
     *   A check of a file with up to 10 diagrams returns within 500 ms with warm workers on a typical
         laptop. CI asserts 1,500 ms and reports the measured time.
-    *   The first Mermaid.js check also pays worker start-up; it is budgeted at 20 s and was about 2 s
-        in testing.
-    *   Memory figures and the budget are set in P2 (R5).
+    *   The first check also pays worker start-up; it is budgeted at 20 s and took 0.2 to 0.6 s in P2.
+    *   **Memory budget (R5):** a checker process with a ready check worker stays under 256 MB resident
+        after checking the corpus and one diagram of every type, on Linux with Node 22 and 24. P2
+        measured 194 to 227 MB. `test:checker` asserts it and prints the measured value; the P2 harness
+        (`scripts/spike/harness.ts`) shows how to measure it.
 *   **Rollout and rollback:**
     *   **Versions.** Odd minor versions are pre-releases (`npm publish --tag next`, `vsce publish
         --pre-release`, `ovsx publish --pre-release`); even minor versions are stable. The extension,
@@ -972,7 +974,10 @@ CA-06.*
 *   **Per-agent packages:** a Claude Code plugin, a Gemini CLI extension, a Codex plugin (D8).
 *   **More errors per check,** by skipping the failing line and checking again, and a "stop" signal in
     results, once the agent evaluation shows they help.
-*   **Replacing jsdom with `@mermaid-js/parser`,** one type at a time (Alternative 12).
+*   **Replacing the browser stand-in with `@mermaid-js/parser`,** one type at a time (Alternative 12).
+*   **A smaller check worker:** leave packages that only draw (elkjs, Cytoscape, KaTeX: about 2.2 MB
+    of the 6.6 MB bundle in P2) out of the check worker, once the corpus shows that parsing never
+    needs them.
 *   **Rendered images for agents to look at,** opt-in.
 *   **Registering the checker for VS Code's built-in chat** (Alternative 8).
 
@@ -1009,11 +1014,11 @@ the pull request), the icon artwork, and README prose. Everything else is specif
         *   `test` (`vitest run --coverage`);
         *   `test:checker`, `test:extension` and `test:webview`;
         *   `build`, `package` and `check-size`.
-    *   **Pinned dependencies:** `mermaid@12.3.0`, `pele@1.13.0`, `markdown-it@15.0.3`, `jsdom@31.0.0`,
+    *   **Pinned dependencies:** `mermaid@12.3.0`, `pele@1.13.0`, `markdown-it@15.0.3`, `linkedom@0.18.15`,
         `@modelcontextprotocol/server@2.4.0` and `zod@4.6.7`.
     *   **Pinned development dependencies:**
         *   `typescript@6.0.3`, `esbuild@0.28.2`, `vitest@5.1.0`, `@vitest/coverage-v8@5.1.0`;
-        *   `dependency-cruiser@18.7.2`, `@types/vscode@1.90.0` and `@types/node@22.20.5`.
+        *   `dependency-cruiser@18.7.2`, `@types/vscode@1.101.0` and `@types/node@22.20.5`.
             markdown-it ships its own types, so it needs no `@types` package;
         *   `@vscode/test-electron@3.1.0`, `mocha@12.0.3`, `@types/mocha@10.0.10`,
             `@playwright/test@1.65.0`;
@@ -1025,7 +1030,7 @@ the pull request), the icon artwork, and README prose. Everything else is specif
     `skipLibCheck`.
 4.  `tsconfig.core.json` (Create). Covers `src/core/**`, with `lib: ["ES2022"]` and `types: []`.
 5.  `tsconfig.node.json` (Create). Covers `src/platform/node/**`, `src/features/checker/**`, and
-    `src/entries/{cli,pele-worker,mermaid-worker}.ts`, with `types: ["node"]`. It has no VS Code
+    `src/entries/{cli,check-worker}.ts`, with `types: ["node"]`. It has no VS Code
     types, so a `vscode` import in checker code fails type checking.
 6.  `tsconfig.host.json` (Create). Covers `src/platform/vscode/**`, `src/features/diagnostics/**`,
     `src/features/agent-setup/**`, `src/features/preview/host/**` and `src/entries/extension.ts`, with
@@ -1037,7 +1042,8 @@ the pull request), the icon artwork, and README prose. Everything else is specif
 9.  `.dependency-cruiser.cjs` (Create). The import rules in Technical Plan section 8, one rule each.
 10. `vitest.config.ts` (Create). Three projects:
     *   `core`, a Node environment for `test/core/**`;
-    *   `mermaid`, a jsdom environment for `test/core/mermaid-check.test.ts`;
+    *   `mermaid`, a Node environment for `test/core/mermaid-check.test.ts` that installs the check
+        worker's stand-in first (`test/helpers/install-dom-standin.ts`, since P2);
     *   `node`, for `test/node/**` and `test/checker/**`.
 
     It sets `setupFiles: ["test/helpers/network-guard.ts"]` and the coverage threshold.
@@ -1165,7 +1171,7 @@ the pull request), the icon artwork, and README prose. Everything else is specif
 *   **Changes from the plan:**
     *   TypeScript 6.0.3 instead of 7, and Node 22.12 or later (Technical Plan section 9).
     *   Message cleaning is shared by both renderers (item 20).
-    *   The Mermaid.js sample checks run in `mermaid-check.test.ts` (jsdom environment); the Pele
+    *   The Mermaid.js sample checks run in `mermaid-check.test.ts` (with a browser stand-in); the Pele
         sample checks run in `pele-check.test.ts`.
     *   `test/helpers/corpus.ts` loads the corpus for every test.
     *   `typecheck` runs the core and test configurations. The node, host and webview configurations
@@ -1196,7 +1202,7 @@ the pull request), the icon artwork, and README prose. Everything else is specif
 43. `docs/designs/diagramist.md` (Modify). Update the section 1 diagram, R5 and the NFRs with the P2
     results.
 
-**If no candidate passes once bundled,** jsdom ships unbundled:
+**If no candidate passes once bundled,** jsdom ships unbundled. *(Not needed: all three passed.)*
 
 *   `external: ["jsdom"]` in the Mermaid.js worker's esbuild entry;
 *   `"dependencies": { "jsdom": "31.0.0" }` in `packages/diagramist/package.json`;
@@ -1204,6 +1210,17 @@ the pull request), the icon artwork, and README prose. Everything else is specif
     `.vscodeignore`.
 
 The 15 MB size gate still applies.
+
+**P2 results (2026-11-13).** Details are in [packaging-notes.md](packaging-notes.md).
+
+*   **Stand-in:** linkedom 0.18.15. All three candidates pass every corpus case and sample once
+    bundled. linkedom uses the least memory on Linux, macOS and Windows, and has the smallest bundle.
+    Bundled jsdom doesn't load on Node 22.12.
+*   **Layout:** one check worker runs both renderers, with the Pele measurer. It saves 10 to 16 MB.
+*   **Memory budget:** 256 MB resident for a checker process (R5 and the NFRs).
+*   **Minimum versions:** Node 22.12 and VS Code 1.101 (Technical Plan section 9).
+*   **Pulled forward from P3:** `src/platform/node/dom-standin.ts` (item 50). The Mermaid.js unit tests
+    install the same stand-in as the worker.
 
 ### Phase P3: Checker, CLI, MCP server, skill and agent evaluation
 
@@ -1214,8 +1231,10 @@ The 15 MB size gate still applies.
 
 44. `scripts/build.mjs` (Create). esbuild builds:
     *   `src/entries/cli.ts` → `packages/diagramist/dist/cli.mjs` (ESM, Node 22.12, with a shebang);
-    *   `src/entries/pele-worker.ts` → `packages/diagramist/dist/pele-worker.mjs`;
-    *   `src/entries/mermaid-worker.ts` → `packages/diagramist/dist/mermaid-worker.mjs`.
+    *   `src/entries/check-worker.ts` → `packages/diagramist/dist/check-worker.mjs`.
+
+    The Node bundles start with a `createRequire` banner, because bundled CommonJS code still calls
+    `require`, and keep linkedom's optional `canvas` package external (both found in P2).
 
     It also:
     *   injects `__DIAGRAMIST_VERSION__`, `__MERMAID_VERSION__` and `__PELE_VERSION__`;
@@ -1235,12 +1254,13 @@ The 15 MB size gate still applies.
 48. `src/platform/node/coordinator.ts` (Create). Technical Plan section 3.
 49. `src/platform/node/read-file.ts` (Create). The file rules in Technical Plan section 6. Validates
     UTF-8 with `TextDecoder("utf-8", { fatal: true })`.
-50. `src/platform/node/dom-standin.ts` (Create). Installs the stand-in's `window`, `document`,
+50. `src/platform/node/dom-standin.ts` (Created in P2). Installs linkedom's `window`, `document`,
     `navigator`, `Element`, `HTMLElement`, `SVGElement`, `DOMParser` and `Node` as globals. The
-    Mermaid.js worker then imports `mermaid` dynamically, after these exist.
+    check worker then imports `mermaid` dynamically, after these exist.
 51. `src/platform/node/logger.ts` (Create). Writes to stderr, at the level set by `DIAGRAMIST_LOG`.
-52. `src/entries/pele-worker.ts` (Create).
-53. `src/entries/mermaid-worker.ts` (Create).
+52. `src/entries/check-worker.ts` (Create). Installs the stand-in, loads both checks, gives Pele the
+    P2 measurer, and answers the messages in Technical Plan section 3 with one `result` per renderer.
+53. *(Dropped in P2: the check worker in item 52 runs both renderers.)*
 54. `src/entries/cli.ts` (Create). Calls `runCli(process.argv)`.
 55. `src/features/checker/cli.ts` (Create). Uses `node:util` `parseArgs` in strict mode, with the
     commands, flags, folder scanning and exit codes from Technical Plan section 5.
@@ -1287,7 +1307,7 @@ The 15 MB size gate still applies.
     *   invalid UTF-8, which gives `not-text`;
     *   removal of the byte-order mark.
 66. `test/node/coordinator.test.ts` (Create). Runs every corpus case through the coordinator, with
-    both workers, and compares the results with `cases.json`.
+    the check worker, and compares the results with `cases.json`.
 67. `test/checker/cli.test.ts` (Create). Covers:
     *   exit codes 0, 1 and 2, and which one wins;
     *   the text grammar;
@@ -1329,7 +1349,7 @@ The 15 MB size gate still applies.
 74. `packages/vscode/package.json` (Create). The VS Code manifest.
     *   **Identity:** `name: diagramist`, `displayName: "Diagramist: Mermaid & Pele diagrams for AI
         agents"`, and the owner's `publisher` ID.
-    *   **Runtime:** `engines.vscode: "^1.90.0"`, `main: "./dist/extension.cjs"`,
+    *   **Runtime:** `engines.vscode: "^1.101.0"`, `main: "./dist/extension.cjs"`,
         `extensionKind: ["workspace"]`.
     *   **Listing:** `categories: ["Visualization", "Linters"]`, and keywords `mermaid`, `pele`,
         `diagram`, `mcp`, `claude code`, `gemini cli` and `codex`.
@@ -1380,7 +1400,7 @@ The 15 MB size gate still applies.
 86. `src/entries/extension.ts` (Create). `activate` sets up the log and settings, then registers
     diagnostics, the preview (from P5) and agent setup. `deactivate` stops the worker pools.
 87. `scripts/build.mjs` (Modify). Add `src/entries/extension.ts` → `packages/vscode/dist/extension.cjs`,
-    and copy both worker bundles into `packages/vscode/dist/`.
+    and copy the check worker bundle into `packages/vscode/dist/`.
 88. `test/extension/run-tests.mjs` (Create). Downloads stable VS Code through `@vscode/test-electron`,
     caches it in `.vscode-test/`, and runs the Mocha suite against `test/extension/fixtures/workspace`.
 89. `test/extension/index.ts` (Create). The Mocha runner: TDD interface, 30-second timeout.

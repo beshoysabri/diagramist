@@ -1,7 +1,7 @@
 import { defineConfig } from "vitest/config";
 
-// Three projects, because Mermaid.js needs a browser-like environment and Pele must not see one
-// (docs/designs/diagramist.md, Technical Plan section 1).
+// Three projects. Mermaid.js needs browser objects in Node, so its tests install the same stand-in
+// as the check worker (src/platform/node/dom-standin.ts); the rest of the core runs without one.
 export default defineConfig({
   test: {
     setupFiles: ["test/helpers/network-guard.ts"],
@@ -27,7 +27,8 @@ export default defineConfig({
         extends: true,
         test: {
           name: "mermaid",
-          environment: "jsdom",
+          environment: "node",
+          setupFiles: ["test/helpers/install-dom-standin.ts"],
           include: ["test/core/mermaid-check.test.ts"],
         },
       },

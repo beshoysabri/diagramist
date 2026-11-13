@@ -7,8 +7,8 @@
 //
 //   node scripts/spike/bundle-mermaid-worker.mjs [--runs 3] [--only jsdom] [--json out/spike/results.json]
 //
-// happy-dom and linkedom are temporary development dependencies; once P2 has chosen, reinstall
-// them with `npm install --no-save happy-dom@21.0.4 linkedom@0.18.15` to run this again.
+// P2 chose linkedom (docs/designs/packaging-notes.md). To run this again, first install the other
+// candidates: `npm install --no-save jsdom@31.0.0 happy-dom@21.0.4`.
 import { execFileSync } from "node:child_process";
 import { mkdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { join, relative, resolve } from "node:path";

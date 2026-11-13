@@ -35,7 +35,7 @@ export interface CorpusCase {
 }
 
 export const corpus: { renderers: Record<RendererId, string>; cases: CorpusCase[] } = JSON.parse(
-  // Resolved from the repository root: in the jsdom environment import.meta.url is not a file URL.
+  // Resolved from the repository root, where the tests and scripts run.
   readFileSync(join(process.cwd(), "test/fixtures/corpus/cases.json"), "utf8"),
 );
 

@@ -9,7 +9,6 @@
     "src/platform/node/**/*.ts",
     "src/features/checker/**/*.ts",
     "src/entries/cli.ts",
-    "src/entries/pele-worker.ts",
-    "src/entries/mermaid-worker.ts"
+    "src/entries/check-worker.ts"
   ]
 }
