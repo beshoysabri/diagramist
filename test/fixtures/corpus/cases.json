@@ -1,0 +1,1023 @@
+{
+ "description": "Diagramist regression corpus. Expected results were computed on 2026-11-13 from Pele 1.13.0 and Mermaid.js 12.3.0 directly (not through Diagramist's code), using the documented mapping rules; scripts/verify-corpus-in-browser.mjs re-checks the Mermaid.js results in a real browser. Positions are 1-based; columns are UTF-16 code units; diagramLine/diagramColumn count from the diagram's first line.",
+ "renderers": {
+  "mermaid": "12.3.0",
+  "pele": "1.13.0"
+ },
+ "cases": [
+  {
+   "id": "md-fence-line-40",
+   "kind": "markdown",
+   "input": "Line 1 of the README.\nLine 2 of the README.\nLine 3 of the README.\nLine 4 of the README.\nLine 5 of the README.\nLine 6 of the README.\nLine 7 of the README.\nLine 8 of the README.\nLine 9 of the README.\nLine 10 of the README.\nLine 11 of the README.\nLine 12 of the README.\nLine 13 of the README.\nLine 14 of the README.\nLine 15 of the README.\nLine 16 of the README.\nLine 17 of the README.\nLine 18 of the README.\nLine 19 of the README.\nLine 20 of the README.\nLine 21 of the README.\nLine 22 of the README.\nLine 23 of the README.\nLine 24 of the README.\nLine 25 of the README.\nLine 26 of the README.\nLine 27 of the README.\nLine 28 of the README.\nLine 29 of the README.\nLine 30 of the README.\nLine 31 of the README.\nLine 32 of the README.\nLine 33 of the README.\nLine 34 of the README.\nLine 35 of the README.\nLine 36 of the README.\nLine 37 of the README.\nLine 38 of the README.\n```mermaid\nflowchart LR\n  A[Start --> B[End]\n```\n",
+   "status": "checked",
+   "blocks": [
+    {
+     "index": 1,
+     "firstLine": 40,
+     "text": "flowchart LR\n  A[Start --> B[End]",
+     "targets": [
+      "mermaid"
+     ],
+     "targetsFrom": {
+      "source": "default"
+     },
+     "notices": [],
+     "mermaid": {
+      "outcome": "fail",
+      "code": "parse",
+      "class": "invalid",
+      "severity": "error",
+      "retry": true,
+      "position": {
+       "line": 41,
+       "column": 16,
+       "diagramLine": 2,
+       "diagramColumn": 16
+      }
+     },
+     "pele": {
+      "outcome": "fail",
+      "code": "syntax",
+      "class": "invalid",
+      "severity": "warning",
+      "retry": true,
+      "position": {
+       "line": 41,
+       "column": 16,
+       "diagramLine": 2,
+       "diagramColumn": 16
+      }
+     }
+    }
+   ]
+  },
+  {
+   "id": "emoji-columns",
+   "kind": "mermaid",
+   "input": "flowchart LR\n  A[\"😀😀 x\"] --> B[End\n",
+   "status": "checked",
+   "blocks": [
+    {
+     "index": 1,
+     "firstLine": 1,
+     "text": "flowchart LR\n  A[\"😀😀 x\"] --> B[End",
+     "targets": [
+      "mermaid"
+     ],
+     "targetsFrom": {
+      "source": "default"
+     },
+     "notices": [],
+     "mermaid": {
+      "outcome": "fail",
+      "code": "parse",
+      "class": "invalid",
+      "severity": "error",
+      "retry": true,
+      "position": {
+       "line": 2,
+       "column": 24,
+       "diagramLine": 2,
+       "diagramColumn": 24
+      }
+     },
+     "pele": {
+      "outcome": "fail",
+      "code": "syntax",
+      "class": "invalid",
+      "severity": "warning",
+      "retry": true,
+      "position": {
+       "line": 2,
+       "column": 24,
+       "diagramLine": 2,
+       "diagramColumn": 24
+      }
+     }
+    }
+   ]
+  },
+  {
+   "id": "unclosed-bracket",
+   "kind": "mermaid",
+   "input": "flowchart LR\n  A[one --> B\n  C[two --> D\n",
+   "status": "checked",
+   "blocks": [
+    {
+     "index": 1,
+     "firstLine": 1,
+     "text": "flowchart LR\n  A[one --> B\n  C[two --> D",
+     "targets": [
+      "mermaid"
+     ],
+     "targetsFrom": {
+      "source": "default"
+     },
+     "notices": [],
+     "mermaid": {
+      "outcome": "fail",
+      "code": "parse",
+      "class": "invalid",
+      "severity": "error",
+      "retry": true,
+      "position": {
+       "line": 3,
+       "column": 4,
+       "diagramLine": 3,
+       "diagramColumn": 4
+      }
+     },
+     "pele": {
+      "outcome": "fail",
+      "code": "syntax",
+      "class": "invalid",
+      "severity": "warning",
+      "retry": true,
+      "position": {
+       "line": 3,
+       "column": 4,
+       "diagramLine": 3,
+       "diagramColumn": 4
+      }
+     }
+    }
+   ]
+  },
+  {
+   "id": "crlf",
+   "kind": "mermaid",
+   "input": "flowchart LR\r\n  A[one --> B\r\n  C[two --> D\r\n",
+   "status": "checked",
+   "blocks": [
+    {
+     "index": 1,
+     "firstLine": 1,
+     "text": "flowchart LR\n  A[one --> B\n  C[two --> D",
+     "targets": [
+      "mermaid"
+     ],
+     "targetsFrom": {
+      "source": "default"
+     },
+     "notices": [],
+     "mermaid": {
+      "outcome": "fail",
+      "code": "parse",
+      "class": "invalid",
+      "severity": "error",
+      "retry": true,
+      "position": {
+       "line": 3,
+       "column": 4,
+       "diagramLine": 3,
+       "diagramColumn": 4
+      }
+     },
+     "pele": {
+      "outcome": "fail",
+      "code": "syntax",
+      "class": "invalid",
+      "severity": "warning",
+      "retry": true,
+      "position": {
+       "line": 3,
+       "column": 4,
+       "diagramLine": 3,
+       "diagramColumn": 4
+      }
+     }
+    }
+   ]
+  },
+  {
+   "id": "gantt-invalid-date",
+   "kind": "mermaid",
+   "input": "gantt\n  dateFormat YYYY-MM-DD\n  section S\n  Task :a1, 2026-13-45, 3d\n",
+   "status": "checked",
+   "blocks": [
+    {
+     "index": 1,
+     "firstLine": 1,
+     "text": "gantt\n  dateFormat YYYY-MM-DD\n  section S\n  Task :a1, 2026-13-45, 3d",
+     "targets": [
+      "mermaid"
+     ],
+     "targetsFrom": {
+      "source": "default"
+     },
+     "notices": [],
+     "mermaid": {
+      "outcome": "pass"
+     },
+     "pele": {
+      "outcome": "fail",
+      "code": "semantic",
+      "class": "invalid",
+      "severity": "warning",
+      "retry": true,
+      "position": null
+     }
+    }
+   ]
+  },
+  {
+   "id": "limit-50001",
+   "kind": "mermaid",
+   "input": null,
+   "generate": {
+    "type": "long-flowchart",
+    "length": 50001
+   },
+   "status": "checked",
+   "blocks": [
+    {
+     "index": 1,
+     "firstLine": 1,
+     "text": null,
+     "targets": [
+      "mermaid"
+     ],
+     "targetsFrom": {
+      "source": "default"
+     },
+     "notices": [],
+     "mermaid": {
+      "outcome": "fail",
+      "code": "limit",
+      "class": "too-large",
+      "severity": "error",
+      "retry": false,
+      "position": null
+     },
+     "pele": {
+      "outcome": "fail",
+      "code": "limit",
+      "class": "too-large",
+      "severity": "warning",
+      "retry": false,
+      "position": null
+     }
+    }
+   ]
+  },
+  {
+   "id": "zenuml",
+   "kind": "mermaid",
+   "input": "zenuml\n  A->B: hi\n",
+   "status": "checked",
+   "blocks": [
+    {
+     "index": 1,
+     "firstLine": 1,
+     "text": "zenuml\n  A->B: hi",
+     "targets": [
+      "mermaid"
+     ],
+     "targetsFrom": {
+      "source": "default"
+     },
+     "notices": [],
+     "mermaid": {
+      "outcome": "fail",
+      "code": "unknown-type",
+      "class": "unsupported",
+      "severity": "error",
+      "retry": false,
+      "position": null
+     },
+     "pele": {
+      "outcome": "fail",
+      "code": "unsupported-diagram",
+      "class": "unsupported",
+      "severity": "warning",
+      "retry": false,
+      "position": null
+     }
+    }
+   ]
+  },
+  {
+   "id": "typo",
+   "kind": "mermaid",
+   "input": "flowchar LR\n  A-->B\n",
+   "status": "checked",
+   "blocks": [
+    {
+     "index": 1,
+     "firstLine": 1,
+     "text": "flowchar LR\n  A-->B",
+     "targets": [
+      "mermaid"
+     ],
+     "targetsFrom": {
+      "source": "default"
+     },
+     "notices": [],
+     "mermaid": {
+      "outcome": "fail",
+      "code": "unknown-type",
+      "class": "invalid",
+      "severity": "error",
+      "retry": true,
+      "position": null
+     },
+     "pele": {
+      "outcome": "fail",
+      "code": "unsupported-diagram",
+      "class": "invalid",
+      "severity": "warning",
+      "retry": true,
+      "position": null
+     }
+    }
+   ]
+  },
+  {
+   "id": "sankey-abc",
+   "kind": "mermaid",
+   "input": "sankey-beta\nA,B,abc\n",
+   "status": "checked",
+   "blocks": [
+    {
+     "index": 1,
+     "firstLine": 1,
+     "text": "sankey-beta\nA,B,abc",
+     "targets": [
+      "mermaid"
+     ],
+     "targetsFrom": {
+      "source": "default"
+     },
+     "notices": [
+      "beta-type"
+     ],
+     "mermaid": {
+      "outcome": "pass"
+     },
+     "pele": {
+      "outcome": "fail",
+      "code": "syntax",
+      "class": "invalid",
+      "severity": "warning",
+      "retry": true,
+      "position": {
+       "line": 2,
+       "column": 5,
+       "diagramLine": 2,
+       "diagramColumn": 5
+      }
+     }
+    }
+   ]
+  },
+  {
+   "id": "sankey-abc-both",
+   "kind": "mermaid",
+   "input": "%% diagramist: targets=mermaid,pele\nsankey-beta\nA,B,abc\n",
+   "status": "checked",
+   "blocks": [
+    {
+     "index": 1,
+     "firstLine": 1,
+     "text": "%% diagramist: targets=mermaid,pele\nsankey-beta\nA,B,abc",
+     "targets": [
+      "mermaid",
+      "pele"
+     ],
+     "targetsFrom": {
+      "source": "comment",
+      "line": 1
+     },
+     "notices": [
+      "beta-type"
+     ],
+     "mermaid": {
+      "outcome": "pass"
+     },
+     "pele": {
+      "outcome": "fail",
+      "code": "syntax",
+      "class": "invalid",
+      "severity": "error",
+      "retry": true,
+      "position": {
+       "line": 3,
+       "column": 5,
+       "diagramLine": 3,
+       "diagramColumn": 5
+      }
+     }
+    }
+   ]
+  },
+  {
+   "id": "targets-none",
+   "kind": "mermaid",
+   "input": "%% diagramist: targets=none\nflowchart LR\n  A[x --> B\n",
+   "status": "checked",
+   "blocks": [
+    {
+     "index": 1,
+     "firstLine": 1,
+     "text": "%% diagramist: targets=none\nflowchart LR\n  A[x --> B",
+     "targets": [],
+     "targetsFrom": {
+      "source": "comment",
+      "line": 1
+     },
+     "notices": [],
+     "mermaid": {
+      "outcome": "fail",
+      "code": "parse",
+      "class": "invalid",
+      "severity": "warning",
+      "retry": true,
+      "position": {
+       "line": 3,
+       "column": 1,
+       "diagramLine": 3,
+       "diagramColumn": 1
+      }
+     },
+     "pele": {
+      "outcome": "fail",
+      "code": "syntax",
+      "class": "invalid",
+      "severity": "warning",
+      "retry": true,
+      "position": {
+       "line": 3,
+       "column": 12,
+       "diagramLine": 3,
+       "diagramColumn": 12
+      }
+     }
+    }
+   ]
+  },
+  {
+   "id": "bad-targets",
+   "kind": "mermaid",
+   "input": "%% diagramist: targets=pel\nflowchart LR\n  A --> B\n",
+   "status": "checked",
+   "blocks": [
+    {
+     "index": 1,
+     "firstLine": 1,
+     "text": "%% diagramist: targets=pel\nflowchart LR\n  A --> B",
+     "targets": [
+      "mermaid"
+     ],
+     "targetsFrom": {
+      "source": "default"
+     },
+     "notices": [
+      "bad-targets-comment"
+     ],
+     "mermaid": {
+      "outcome": "pass"
+     },
+     "pele": {
+      "outcome": "pass"
+     }
+    }
+   ]
+  },
+  {
+   "id": "targets-after-type-line",
+   "kind": "mermaid",
+   "input": "flowchart LR\n%% diagramist: targets=pele\n  A --> B[x\n",
+   "status": "checked",
+   "blocks": [
+    {
+     "index": 1,
+     "firstLine": 1,
+     "text": "flowchart LR\n%% diagramist: targets=pele\n  A --> B[x",
+     "targets": [
+      "pele"
+     ],
+     "targetsFrom": {
+      "source": "comment",
+      "line": 2
+     },
+     "notices": [],
+     "mermaid": {
+      "outcome": "fail",
+      "code": "parse",
+      "class": "invalid",
+      "severity": "warning",
+      "retry": true,
+      "position": {
+       "line": 3,
+       "column": 1,
+       "diagramLine": 3,
+       "diagramColumn": 1
+      }
+     },
+     "pele": {
+      "outcome": "fail",
+      "code": "syntax",
+      "class": "invalid",
+      "severity": "error",
+      "retry": true,
+      "position": {
+       "line": 3,
+       "column": 12,
+       "diagramLine": 3,
+       "diagramColumn": 12
+      }
+     }
+    }
+   ]
+  },
+  {
+   "id": "nested-fence",
+   "kind": "markdown",
+   "input": "````md\n```mermaid\nflowchart LR\n```\n````\n",
+   "status": "no-diagrams",
+   "blocks": []
+  },
+  {
+   "id": "list-fence",
+   "kind": "markdown",
+   "input": "- item\n\n  ```mermaid\n  flowchart LR\n    A --> B[x\n  ```\n",
+   "status": "checked",
+   "blocks": [
+    {
+     "index": 1,
+     "firstLine": 4,
+     "text": "flowchart LR\n  A --> B[x",
+     "targets": [
+      "mermaid"
+     ],
+     "targetsFrom": {
+      "source": "default"
+     },
+     "notices": [],
+     "mermaid": {
+      "outcome": "fail",
+      "code": "parse",
+      "class": "invalid",
+      "severity": "error",
+      "retry": true,
+      "position": {
+       "line": 5,
+       "column": 14,
+       "diagramLine": 2,
+       "diagramColumn": 12
+      }
+     },
+     "pele": {
+      "outcome": "fail",
+      "code": "syntax",
+      "class": "invalid",
+      "severity": "warning",
+      "retry": true,
+      "position": {
+       "line": 5,
+       "column": 14,
+       "diagramLine": 2,
+       "diagramColumn": 12
+      }
+     }
+    }
+   ]
+  },
+  {
+   "id": "quote-fence",
+   "kind": "markdown",
+   "input": "> ```mermaid\n> flowchart LR\n>   A --> B[x\n> ```\n",
+   "status": "checked",
+   "blocks": [
+    {
+     "index": 1,
+     "firstLine": 2,
+     "text": "flowchart LR\n  A --> B[x",
+     "targets": [
+      "mermaid"
+     ],
+     "targetsFrom": {
+      "source": "default"
+     },
+     "notices": [],
+     "mermaid": {
+      "outcome": "fail",
+      "code": "parse",
+      "class": "invalid",
+      "severity": "error",
+      "retry": true,
+      "position": {
+       "line": 3,
+       "column": 14,
+       "diagramLine": 2,
+       "diagramColumn": 12
+      }
+     },
+     "pele": {
+      "outcome": "fail",
+      "code": "syntax",
+      "class": "invalid",
+      "severity": "warning",
+      "retry": true,
+      "position": {
+       "line": 3,
+       "column": 14,
+       "diagramLine": 2,
+       "diagramColumn": 12
+      }
+     }
+    }
+   ]
+  },
+  {
+   "id": "tilde-fence",
+   "kind": "markdown",
+   "input": "~~~mermaid\nflowchart LR\n  A --> B\n~~~\n",
+   "status": "checked",
+   "blocks": [
+    {
+     "index": 1,
+     "firstLine": 2,
+     "text": "flowchart LR\n  A --> B",
+     "targets": [
+      "mermaid"
+     ],
+     "targetsFrom": {
+      "source": "default"
+     },
+     "notices": [],
+     "mermaid": {
+      "outcome": "pass"
+     },
+     "pele": {
+      "outcome": "pass"
+     }
+    }
+   ]
+  },
+  {
+   "id": "two-blocks",
+   "kind": "markdown",
+   "input": "```mermaid\nflowchart LR\n  A --> B\n```\n\nSome text.\n\n```mermaid\nsequenceDiagram\n  Alice->>Bob: hi\n  loop forever\n  Bob-->>Alice: yo\n```\n",
+   "status": "checked",
+   "blocks": [
+    {
+     "index": 1,
+     "firstLine": 2,
+     "text": "flowchart LR\n  A --> B",
+     "targets": [
+      "mermaid"
+     ],
+     "targetsFrom": {
+      "source": "default"
+     },
+     "notices": [],
+     "mermaid": {
+      "outcome": "pass"
+     },
+     "pele": {
+      "outcome": "pass"
+     }
+    },
+    {
+     "index": 2,
+     "firstLine": 9,
+     "text": "sequenceDiagram\n  Alice->>Bob: hi\n  loop forever\n  Bob-->>Alice: yo",
+     "targets": [
+      "mermaid"
+     ],
+     "targetsFrom": {
+      "source": "default"
+     },
+     "notices": [],
+     "mermaid": {
+      "outcome": "fail",
+      "code": "parse",
+      "class": "invalid",
+      "severity": "error",
+      "retry": true,
+      "position": {
+       "line": 12,
+       "column": 19,
+       "diagramLine": 4,
+       "diagramColumn": 19
+      }
+     },
+     "pele": {
+      "outcome": "fail",
+      "code": "syntax",
+      "class": "invalid",
+      "severity": "warning",
+      "retry": true,
+      "position": {
+       "line": 12,
+       "column": 19,
+       "diagramLine": 4,
+       "diagramColumn": 19
+      }
+     }
+    }
+   ]
+  },
+  {
+   "id": "fenced-text-input",
+   "kind": "text",
+   "input": "```mermaid\nflowchart LR\n  A --> B[x\n```",
+   "status": "checked",
+   "blocks": [
+    {
+     "index": 1,
+     "firstLine": 1,
+     "text": "flowchart LR\n  A --> B[x",
+     "targets": [
+      "mermaid"
+     ],
+     "targetsFrom": {
+      "source": "default"
+     },
+     "notices": [
+      "fences-stripped"
+     ],
+     "mermaid": {
+      "outcome": "fail",
+      "code": "parse",
+      "class": "invalid",
+      "severity": "error",
+      "retry": true,
+      "position": {
+       "line": 2,
+       "column": 12,
+       "diagramLine": 2,
+       "diagramColumn": 12
+      }
+     },
+     "pele": {
+      "outcome": "fail",
+      "code": "syntax",
+      "class": "invalid",
+      "severity": "warning",
+      "retry": true,
+      "position": {
+       "line": 2,
+       "column": 12,
+       "diagramLine": 2,
+       "diagramColumn": 12
+      }
+     }
+    }
+   ]
+  },
+  {
+   "id": "langium-error",
+   "kind": "mermaid",
+   "input": "pie\n  \"a\": x\n",
+   "status": "checked",
+   "blocks": [
+    {
+     "index": 1,
+     "firstLine": 1,
+     "text": "pie\n  \"a\": x",
+     "targets": [
+      "mermaid"
+     ],
+     "targetsFrom": {
+      "source": "default"
+     },
+     "notices": [],
+     "mermaid": {
+      "outcome": "fail",
+      "code": "parse",
+      "class": "invalid",
+      "severity": "error",
+      "retry": true,
+      "position": {
+       "line": 2,
+       "column": 8,
+       "diagramLine": 2,
+       "diagramColumn": 8
+      }
+     },
+     "pele": {
+      "outcome": "fail",
+      "code": "syntax",
+      "class": "invalid",
+      "severity": "warning",
+      "retry": true,
+      "position": {
+       "line": 2,
+       "column": 8,
+       "diagramLine": 2,
+       "diagramColumn": 8
+      }
+     }
+    }
+   ]
+  },
+  {
+   "id": "valid-flowchart",
+   "kind": "mermaid",
+   "input": "flowchart LR\n  A[Agent] --> B(Check)\n  B --> C{OK?}\n",
+   "status": "checked",
+   "blocks": [
+    {
+     "index": 1,
+     "firstLine": 1,
+     "text": "flowchart LR\n  A[Agent] --> B(Check)\n  B --> C{OK?}",
+     "targets": [
+      "mermaid"
+     ],
+     "targetsFrom": {
+      "source": "default"
+     },
+     "notices": [],
+     "mermaid": {
+      "outcome": "pass"
+     },
+     "pele": {
+      "outcome": "pass"
+     }
+    }
+   ]
+  },
+  {
+   "id": "info-string-case",
+   "kind": "markdown",
+   "input": "```Mermaid title=x\nflowchart LR\n  A --> B\n```\n",
+   "status": "checked",
+   "blocks": [
+    {
+     "index": 1,
+     "firstLine": 2,
+     "text": "flowchart LR\n  A --> B",
+     "targets": [
+      "mermaid"
+     ],
+     "targetsFrom": {
+      "source": "default"
+     },
+     "notices": [],
+     "mermaid": {
+      "outcome": "pass"
+     },
+     "pele": {
+      "outcome": "pass"
+     }
+    }
+   ]
+  },
+  {
+   "id": "unclosed-fence",
+   "kind": "markdown",
+   "input": "Intro\n\n```mermaid\nflowchart LR\n  A --> B",
+   "status": "checked",
+   "blocks": [
+    {
+     "index": 1,
+     "firstLine": 4,
+     "text": "flowchart LR\n  A --> B",
+     "targets": [
+      "mermaid"
+     ],
+     "targetsFrom": {
+      "source": "default"
+     },
+     "notices": [],
+     "mermaid": {
+      "outcome": "pass"
+     },
+     "pele": {
+      "outcome": "pass"
+     }
+    }
+   ]
+  },
+  {
+   "id": "empty-fence",
+   "kind": "markdown",
+   "input": "```mermaid\n```\n",
+   "status": "checked",
+   "blocks": [
+    {
+     "index": 1,
+     "firstLine": 2,
+     "text": "",
+     "targets": [
+      "mermaid"
+     ],
+     "targetsFrom": {
+      "source": "default"
+     },
+     "notices": [],
+     "mermaid": {
+      "outcome": "fail",
+      "code": "unknown-type",
+      "class": "invalid",
+      "severity": "error",
+      "retry": true,
+      "position": null
+     },
+     "pele": {
+      "outcome": "fail",
+      "code": "unsupported-diagram",
+      "class": "invalid",
+      "severity": "warning",
+      "retry": true,
+      "position": null
+     }
+    }
+   ]
+  },
+  {
+   "id": "eof-sequence",
+   "kind": "mermaid",
+   "input": "sequenceDiagram\n  Alice->>Bob: hi\n  loop forever\n  Bob-->>Alice: yo\n",
+   "status": "checked",
+   "blocks": [
+    {
+     "index": 1,
+     "firstLine": 1,
+     "text": "sequenceDiagram\n  Alice->>Bob: hi\n  loop forever\n  Bob-->>Alice: yo",
+     "targets": [
+      "mermaid"
+     ],
+     "targetsFrom": {
+      "source": "default"
+     },
+     "notices": [],
+     "mermaid": {
+      "outcome": "fail",
+      "code": "parse",
+      "class": "invalid",
+      "severity": "error",
+      "retry": true,
+      "position": {
+       "line": 4,
+       "column": 19,
+       "diagramLine": 4,
+       "diagramColumn": 19
+      }
+     },
+     "pele": {
+      "outcome": "fail",
+      "code": "syntax",
+      "class": "invalid",
+      "severity": "warning",
+      "retry": true,
+      "position": {
+       "line": 4,
+       "column": 19,
+       "diagramLine": 4,
+       "diagramColumn": 19
+      }
+     }
+    }
+   ]
+  },
+  {
+   "id": "markdown-frontmatter",
+   "kind": "markdown",
+   "input": "---\ntitle: Notes\n---\n\n# Heading\n\n```mermaid\nflowchart TD\n  A --> B[x\n```\n",
+   "status": "checked",
+   "blocks": [
+    {
+     "index": 1,
+     "firstLine": 8,
+     "text": "flowchart TD\n  A --> B[x",
+     "targets": [
+      "mermaid"
+     ],
+     "targetsFrom": {
+      "source": "default"
+     },
+     "notices": [],
+     "mermaid": {
+      "outcome": "fail",
+      "code": "parse",
+      "class": "invalid",
+      "severity": "error",
+      "retry": true,
+      "position": {
+       "line": 9,
+       "column": 12,
+       "diagramLine": 2,
+       "diagramColumn": 12
+      }
+     },
+     "pele": {
+      "outcome": "fail",
+      "code": "syntax",
+      "class": "invalid",
+      "severity": "warning",
+      "retry": true,
+      "position": {
+       "line": 9,
+       "column": 12,
+       "diagramLine": 2,
+       "diagramColumn": 12
+      }
+     }
+    }
+   ]
+  }
+ ]
+}

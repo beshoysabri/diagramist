@@ -1,0 +1,14 @@
+{
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "types": []
+  },
+  "include": [
+    "src/core/**/*.ts",
+    "src/draw/**/*.ts",
+    "src/platform/messages.ts",
+    "src/features/preview/webview/**/*.ts",
+    "src/entries/webview.ts"
+  ]
+}

@@ -1,0 +1,18 @@
+{
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "lib": ["ES2022"],
+    "types": ["node", "vscode"]
+  },
+  "include": [
+    "src/core/**/*.ts",
+    "src/platform/node/**/*.ts",
+    "src/platform/vscode/**/*.ts",
+    "src/platform/messages.ts",
+    "src/features/diagnostics/**/*.ts",
+    "src/features/agent-setup/**/*.ts",
+    "src/features/preview/host/**/*.ts",
+    "src/features/preview/index.ts",
+    "src/entries/extension.ts"
+  ]
+}

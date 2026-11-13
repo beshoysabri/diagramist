@@ -1,0 +1,15 @@
+{
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "lib": ["ES2022"],
+    "types": ["node"]
+  },
+  "include": [
+    "src/core/**/*.ts",
+    "src/platform/node/**/*.ts",
+    "src/features/checker/**/*.ts",
+    "src/entries/cli.ts",
+    "src/entries/pele-worker.ts",
+    "src/entries/mermaid-worker.ts"
+  ]
+}

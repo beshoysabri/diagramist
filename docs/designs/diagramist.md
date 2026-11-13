@@ -613,12 +613,16 @@ src/
 
 ### 9. Choices with one defensible answer
 
-*   **Build.** TypeScript 7 in strict mode, used only for type checking. esbuild 0.28 builds the
-    bundles:
+*   **Build.** TypeScript 6.0.3 in strict mode, used only for type checking. P1 found that TypeScript 7's
+    npm package no longer exposes the JavaScript API that dependency-cruiser needs. esbuild 0.28 builds
+    the bundles:
     *   `extension.cjs` (CommonJS, `vscode` external);
     *   `webview.js` (an IIFE for the browser);
     *   `cli.mjs`, `pele-worker.mjs` and `mermaid-worker.mjs` (ES modules for Node).
-*   **Node 20 or later.** `npm view pele engines` gives `>=20`, checked on 2026-11-11.
+*   **Node 22.12 or later at run time.** Mermaid.js 12.3.0 declares `node >=22.12.0`; Pele only needs
+    `>=20`. Development also needs Node 22, because Vitest 5 and dependency-cruiser 18 require it.
+    jsdom 31.0.0 declares `^22.22.2 || ^24.15.0 || >=26`; P2 records the final minimum for the chosen
+    browser stand-in, and the oldest VS Code whose extension host meets it. Checked on 2026-11-13.
 *   **Pinned versions.** `mermaid` 12.3.0, `pele` 1.13.0, `markdown-it` 15.0.3 and `jsdom` 31.0.0 are
     pinned exactly.
 *   **Upgrade policy.** An upgrade that changes any verdict is at least a minor release, with a
@@ -1008,9 +1012,9 @@ the pull request), the icon artwork, and README prose. Everything else is specif
     *   **Pinned dependencies:** `mermaid@12.3.0`, `pele@1.13.0`, `markdown-it@15.0.3`, `jsdom@31.0.0`,
         `@modelcontextprotocol/server@2.4.0` and `zod@4.6.7`.
     *   **Pinned development dependencies:**
-        *   `typescript@7.0.2`, `esbuild@0.28.2`, `vitest@5.1.0`, `@vitest/coverage-v8@5.1.0`;
-        *   `dependency-cruiser@18.7.2`, `@types/vscode@1.90.0`, `@types/markdown-it@14.2.0`,
-            `@types/node@20` (locked by the lockfile);
+        *   `typescript@6.0.3`, `esbuild@0.28.2`, `vitest@5.1.0`, `@vitest/coverage-v8@5.1.0`;
+        *   `dependency-cruiser@18.7.2`, `@types/vscode@1.90.0` and `@types/node@22.20.5`.
+            markdown-it ships its own types, so it needs no `@types` package;
         *   `@vscode/test-electron@3.1.0`, `mocha@12.0.3`, `@types/mocha@10.0.10`,
             `@playwright/test@1.65.0`;
         *   `@modelcontextprotocol/client@2.4.0`, `@vscode/vsce@4.1.0`, `ovsx@1.4.0`.
@@ -1038,8 +1042,9 @@ the pull request), the icon artwork, and README prose. Everything else is specif
 
     It sets `setupFiles: ["test/helpers/network-guard.ts"]` and the coverage threshold.
 11. `.github/workflows/ci.yml` (Create). Runs on pull requests, with no secrets. The matrix is
-    `ubuntu-latest` (Node 20 and 22), and `macos-latest` and `windows-latest` (Node 22). Steps:
-    `npm ci`, `typecheck`, `lint:deps`, `test`, and on Linux `verify-corpus-in-browser`.
+    `ubuntu-latest` (Node 22 and 24), and `macos-latest` and `windows-latest` (Node 22). Steps:
+    `npm ci`, `typecheck`, `lint:deps` and `test`. A Linux job runs `verify:corpus` with Playwright's
+    Chromium.
 12. `.gitignore` (Modify). Add `coverage/`. The existing `dist/`, `.vscode-test/` and `*.vsix`
     entries already cover the build outputs.
 13. `src/core/compat/keywords.ts` (Create). Every diagram keyword from Pele's compatibility page and
@@ -1070,9 +1075,10 @@ the pull request), the icon artwork, and README prose. Everything else is specif
     *   It calls `mermaid.initialize({ startOnLoad: false, securityLevel: "strict" })` once, then
         `await mermaid.parse(text)`.
     *   It maps errors as in section 4.
-20. `src/core/renderers/mermaid/token-names.ts` (Create). Readable names for every jison token that
-    appears in the corpus, starting with `SQE`, `PE`, `DIAMOND_STOP`, `NEWLINE`, `SPACE`, `EOF` and
-    `$end`.
+20. `src/core/renderers/shared/token-names.ts` and `src/core/renderers/shared/messages.ts` (Create).
+    Readable names for every jison token that appears in the corpus (`SQE`, `PE`, `DIAMOND_STOP`,
+    `NEWLINE`, `SPACE`, `EOF`, `$end` and others), and the message cleaning that both renderers'
+    checks share. They are shared because Pele's parse errors use the same jison format.
 21. `src/core/result/schema.ts` (Create). TypeScript types for section 4, plus a JSON Schema used by
     the tests to validate `--json` output.
 22. `src/core/result/build-result.ts` (Create). `buildBlockResult` and `buildCheckResult`. They set
@@ -1140,6 +1146,27 @@ the pull request), the icon artwork, and README prose. Everything else is specif
 | `langium-error` | `pie` / `  "a": x` | Mermaid.js `parse`; position as recorded in P1, or null |
 | `newer-type` | a type Mermaid.js 12.3.0 parses and Pele 1.13.0 lacks, if one exists | Mermaid.js pass; Pele `unsupported` warning; `newer-type` notice (omitted, with a note, if no such type exists) |
 
+**P1 results (2026-11-13).**
+
+*   **Tests:** 155 tests pass, with 98.6% line coverage in `src/core`. The import rules hold, and both
+    type-check configurations that have files in P1 (core and test) pass.
+*   **Browser check:** `verify:corpus` runs 25 of the 26 corpus diagrams through Mermaid.js 12.3.0 in
+    Chromium, and all 25 match. The 26th is the size-limit case, which Diagramist decides before
+    Mermaid.js runs.
+*   **Error shapes:**
+    *   Langium-based Mermaid.js types throw `MermaidParseError`. Its `result.lexerErrors` carry 1-based
+        `line` and `column`; its `result.parserErrors` carry `token.startLine` and `token.startColumn`,
+        both 1-based.
+    *   Unknown types throw `UnknownDiagramError`, whose message repeats the whole diagram.
+*   **Parse versus draw:** the corpus case `gantt-invalid-date` passes Mermaid.js, which only parses,
+    and fails Pele. This is risk R1, measured.
+*   **Changes from the plan:**
+    *   TypeScript 6.0.3 instead of 7, and Node 22.12 or later (Technical Plan section 9).
+    *   Message cleaning is shared by both renderers (item 20).
+    *   The Mermaid.js sample checks run in `mermaid-check.test.ts` (jsdom environment); the Pele
+        sample checks run in `pele-check.test.ts`.
+    *   `test/helpers/corpus.ts` loads the corpus for every test.
+
 ### Phase P2: Packaging test
 
 **Gate:** `docs/designs/packaging-notes.md` records:
@@ -1181,7 +1208,7 @@ The 15 MB size gate still applies.
 *   The agent evaluation results are committed, and the D7 outcome is recorded in this document.
 
 44. `scripts/build.mjs` (Create). esbuild builds:
-    *   `src/entries/cli.ts` → `packages/diagramist/dist/cli.mjs` (ESM, Node 20, with a shebang);
+    *   `src/entries/cli.ts` → `packages/diagramist/dist/cli.mjs` (ESM, Node 22.12, with a shebang);
     *   `src/entries/pele-worker.ts` → `packages/diagramist/dist/pele-worker.mjs`;
     *   `src/entries/mermaid-worker.ts` → `packages/diagramist/dist/mermaid-worker.mjs`.
 
@@ -1223,7 +1250,7 @@ The 15 MB size gate still applies.
 60. `packages/diagramist/package.json` (Create).
     *   `name: diagramist`, `type: module`, `bin: { "diagramist": "dist/cli.mjs" }`.
     *   `files`: `dist`, `skills`, `LICENSE`, `THIRD_PARTY_NOTICES.md` and `README.md`.
-    *   `engines.node: ">=20"` and `license: MIT`.
+    *   `engines.node: ">=22.12"` and `license: MIT`.
     *   No `dependencies`, unless P2 used its fallback.
 61. `packages/diagramist/README.md` (Create). Install, commands, privacy, a link to
     `docs/agents.md`, and the sentence "Unofficial. Not affiliated with Obsidian, the Mermaid project
@@ -1590,7 +1617,7 @@ release checklist covers the real behaviour.
 *   **Extension:** `npm run test:extension`, under `xvfb-run` on Linux.
 *   **Webview and export:** `npm run test:webview`.
 *   **Packaging:** `npm run package`, with the 15 MB gates.
-*   **CI matrix:** Linux with Node 20 and 22; macOS and Windows with Node 22.
+*   **CI matrix:** Linux with Node 22 and 24; macOS and Windows with Node 22.
 
 **Goal measures:**
 
