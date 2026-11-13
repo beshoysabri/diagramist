@@ -1150,6 +1150,8 @@ the pull request), the icon artwork, and README prose. Everything else is specif
 
 *   **Tests:** 155 tests pass, with 98.6% line coverage in `src/core`. The import rules hold, and both
     type-check configurations that have files in P1 (core and test) pass.
+*   **CI:** all five jobs pass (Linux with Node 22 and 24, macOS, Windows, and the browser check), in
+    [run 43390164116](https://github.com/beshoysabri/diagramist/actions/runs/43390164116).
 *   **Browser check:** `verify:corpus` runs 25 of the 26 corpus diagrams through Mermaid.js 12.3.0 in
     Chromium, and all 25 match. The 26th is the size-limit case, which Diagramist decides before
     Mermaid.js runs.
@@ -1166,6 +1168,9 @@ the pull request), the icon artwork, and README prose. Everything else is specif
     *   The Mermaid.js sample checks run in `mermaid-check.test.ts` (jsdom environment); the Pele
         sample checks run in `pele-check.test.ts`.
     *   `test/helpers/corpus.ts` loads the corpus for every test.
+    *   `typecheck` runs the core and test configurations. The node, host and webview configurations
+        join it in the phases that add their first files, because `tsc` fails on a configuration that
+        matches no files.
 
 ### Phase P2: Packaging test
 
