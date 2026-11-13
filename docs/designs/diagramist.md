@@ -1,225 +1,254 @@
 # Diagramist
 
 *   **Author:** Beshoy Sabri
-*   **Status:** Proposed (ready for `egm-review`)
-*   **Date:** 2026-11-11
-*   **Input:** [concepts_brief.md](../egm/concepts_brief.md), including its "Decisions after the review"
+*   **Status:** Approved for implementation. Revised on 2026-11-13 after `egm-review`; the author
+    accepted all 30 proposed fixes.
+*   **Date:** 2026-11-11 (first draft); 2026-11-13 (revised)
+*   **Input:** [concepts_brief.md](../egm/concepts_brief.md), including its "Decisions after the
+    review"
+*   **Review record:** [consolidated_review_report.md](../egm/review/consolidated_review_report.md)
+    and [goldfish_review_report.md](../egm/review/goldfish_review_report.md)
 
 --------------------------------------------------------------------------------
 
 ## Overview
 
-Diagramist helps AI coding agents write Mermaid diagrams that render where they will be used, and
-lets the person see and export those diagrams in VS Code. It has three parts that share one core:
+Diagramist helps AI coding agents write Mermaid diagrams that parse and draw correctly. It also lets
+the person preview and export those diagrams in VS Code.
 
-1. **Checker.** A small local program that agents start themselves as an MCP server over standard
-   input and output (stdio). It may also ship as a command-line tool (open question 7). Given a file,
-   it finds every Mermaid diagram in it and checks each one with Mermaid.js (syntax) and Pele (full
-   render). For each diagram and each renderer it returns either "OK" or the first error, with the
-   error's line and column in the file when the renderer gives one. It needs no VS Code, network,
-   account or AI model.
-2. **VS Code extension.** It previews diagrams with Pele or Mermaid.js in VS Code's colours and shows
-   the same errors in the Problems panel. It exports SVG and PNG for slides and documents, and helps
-   connect Claude Code, Gemini CLI and Codex to the checker.
-3. **Core.** Shared code with no dependency on VS Code. It holds:
-   * finding diagrams in files and mapping positions;
-   * one adapter per renderer, which is the only code that imports `mermaid` or `pele`;
-   * the result format;
-   * the render and security settings;
-   * the theme map.
+Two renderers are involved:
 
-   Both the checker and the extension use the core, so they give the same verdict.
+*   **Mermaid.js** (https://mermaid.js.org) is the reference implementation of the Mermaid diagram
+    language. GitHub, Notion and many documentation sites draw diagrams with it, each at its own
+    version.
+*   **Pele** (https://pele.run) is a separate implementation of the Mermaid language, made by
+    Obsidian. It parses Mermaid text and draws it with its own layout. It needs no browser and is
+    themed with CSS variables.
+
+Diagramist has three parts that share one core:
+
+1.  **Checker.** `diagramist` is an npm package. Agents run it from their terminal as
+    `diagramist check <file>`. It may also run as an MCP server, `diagramist mcp`, if the evaluation in
+    phase P3 shows that this helps. MCP, the Model Context Protocol, is the standard way coding agents
+    call outside tools.
+
+    Given a file, the checker finds every Mermaid diagram and runs both renderers on each one.
+    Mermaid.js parses the diagram, which checks syntax but not layout, and Pele draws it. For each
+    diagram the checker reports whether Mermaid.js parses it and whether Pele draws it. If not, it
+    gives the first error, with its line and column in the file when the renderer provides one. It
+    needs no VS Code, network connection, account or AI model.
+2.  **VS Code extension.** It does four things:
+    *   previews diagrams with either renderer;
+    *   shows the checker's errors for saved files in the Problems panel;
+    *   exports SVG and PNG for slides and documents;
+    *   helps connect Claude Code, Gemini CLI and Codex.
+3.  **Core.** Shared code with no dependency on VS Code, Node or a browser page. It covers finding
+    diagrams in files, mapping positions, checking with each renderer, the result format and the
+    fixed render settings.
+
+**What a pass means.** A pass means Mermaid.js 12.3.0 can parse the diagram. For diagrams that target
+Pele, it also means Pele 1.13.0 can draw it. GitHub, Notion and documentation sites may run other
+Mermaid.js versions, and Mermaid.js can still fail while drawing a diagram it parsed. So a pass is
+strong evidence, not a guarantee.
 
 Diagramist calls no AI model. The person's agent writes the diagrams; Diagramist checks, shows and
 exports them.
 
-## The Problem
+## The Problem (Problem Statement)
 
 People ask AI coding agents (Claude Code, Gemini CLI, Codex) to draw diagrams as Mermaid text:
 architecture sketches in READMEs, flows in documentation, figures for slides. Three things go wrong.
 
-1. **Agents can't see whether a diagram renders.** They write Mermaid from memory, and small slips
-   are common: an unclosed bracket, a reserved word, or a newer diagram type the destination doesn't
-   support. The agent reports the work as done, and the person finds the problem later:
-   * GitHub shows a render error after a push;
-   * Notion shows raw code;
-   * an exported slide image comes out broken.
-2. **The fix loop is manual.** Today the person copies errors from a preview, or from an online
-   editor, back into the agent's chat, often several times. Online checkers send the diagram to a
-   website, which some workplaces don't allow. Agent-side tools that exist today mostly need a
-   headless browser, one specific renderer, or an online service.
-3. **Renderers disagree.** GitHub, Notion and documentation sites draw Mermaid with Mermaid.js, each
-   with its own version. Pele, Obsidian's renderer, is fast, small and themeable, which suits exported
-   images. But its layout differs, and it accepts or rejects some input differently. A test on
-   2026-11-11 showed a Sankey value of `abc` passing Mermaid.js and failing Pele. A single "valid"
-   verdict hides this.
+1.  **Agents can't see whether a diagram works.** They write Mermaid from memory, and small slips are
+    frequent: an unclosed bracket, a reserved word, or a diagram type the destination doesn't
+    support. The agent reports the work as done, and the person finds the problem later:
+    *   GitHub shows a render error after a push;
+    *   Notion shows raw code;
+    *   an exported slide image comes out broken.
+2.  **Fixing is manual.** The person copies errors from a preview or an online editor back into the
+    agent's chat, often several times. Online checkers send the diagram to a website, which some
+    workplaces don't allow.
+3.  **Renderers disagree.** GitHub, Notion and documentation sites draw with Mermaid.js, each at its
+    own version. Pele lays diagrams out differently, and it accepts or rejects some input
+    differently. In a test on 2026-11-11, a Sankey value of `abc` passed Mermaid.js and failed Pele.
+    A single "valid" verdict hides this.
 
-What exists today (checked 2026-11-11):
+**What exists today.** Checked on 2026-11-11, from registry listings:
 
-* **Preview extensions.** VS Code has Mermaid preview extensions, from the official Mermaid Chart
-  extension (Mermaid.js, about 1.18 million installs) to three small Pele-based previews. They show
-  diagrams to people, but none offers agents a check they can call.
-* **Agent and command-line tools.** npm has two Pele command-line tools and several Mermaid MCP servers
-  built on Mermaid.js or other renderers. None of them does all three of:
-  * check against both renderers;
-  * map errors to positions in the real file;
-  * tie into the editor's Problems panel and preview.
+*   **Preview extensions:** the official Mermaid Chart extension (Mermaid.js, about 1.18 million
+    installs) and three Pele-based previews (`pdanpdan.mermaid-pele-preview`,
+    `bumkom.markdown-viewer-lite`, `saeris.markdown-mermaid-pele`, with 42-130 installs each). Their
+    Marketplace listings mention no check that agents can call.
+*   **Command-line tools and MCP servers:**
+    *   two Pele CLIs on npm (`@ahmedelgabri/pele-cli`, `@simhozebs/pele-cli`);
+    *   four Mermaid MCP servers (`@zombie-mermaid/mcp`, `@peng-shawn/mermaid-mcp-server`,
+        `mermaid-mcp-server`, `mermaid-mcp-app`).
+
+    Each npm description names one renderer. None mentions mapping errors to positions in the file,
+    or editor integration.
 
 ## Goals
 
-1. **Agents can check a file without VS Code.** One tool call, given only a path, checks every
-   Mermaid diagram in a file, with VS Code closed. For each diagram and renderer the result gives OK,
-   or the first error with:
-   * the renderer and its version;
-   * the error class: invalid diagram, not supported by this renderer, too large, or tool problem;
-   * the renderer's error code;
-   * the file line and column, when the renderer provides them;
-   * a short snippet;
-   * a hint.
+1.  **Agents check a file by path, without VS Code.** One command, `diagramist check <file>` (or one
+    MCP call, if the MCP server ships), checks every Mermaid diagram in a file with VS Code closed.
+    For each diagram and renderer, the result says pass, or gives the first error with:
+    *   the renderer and its version;
+    *   the error class and code;
+    *   the file line and column, when available;
+    *   a snippet, marked as untrusted text;
+    *   a hint.
 
-   *Measure:* a passing file costs under 100 tokens of tool output, and a failing diagram under 1,000
-   tokens by default.
-2. **Two renderers, one result format.** Every diagram is checked by Mermaid.js (syntax) and by Pele
-   (full render). Both versions are pinned and named in every result. The user decides which
-   renderers must pass (the "targets"): for example, Mermaid.js for a README that GitHub draws, and
-   Pele for a slide image Diagramist exports. A failure in a renderer that isn't a target is a
-   warning, not an error.
-3. **Tested with three agents.** Setup and the check-and-fix loop are tested and documented for Claude
-   Code, Gemini CLI and Codex run from a terminal, including VS Code's integrated terminal. Their own
-   VS Code panels are covered where they share the terminal's settings (to verify).
+    *Measure:* a passing file's text result is one line under 200 characters. A failing file's text
+    result is capped at 4,000 characters. The P3 agent evaluation records how many tokens each
+    agent's model actually sees.
+2.  **Two renderers, with Mermaid.js deciding by default.** Both renderers run on every diagram. By
+    default only Mermaid.js failures are errors, and Pele failures are warnings. A comment line in
+    the diagram can change that: `targets=mermaid,pele` (both must pass), `targets=pele`, or
+    `targets=none`. Pele's verdict also becomes binding when the user exports with Pele.
 
-   *Measures:*
-   * Connecting one agent takes one command and under two minutes.
-   * Before each release, a hand-run test uses a fixed set of at least 30 diagrams with planted
-     errors. Each agent must reach a passing diagram within three checks in at least 90% of cases.
-4. **Live preview in VS Code.** `.mmd` and `.mermaid` files, and ```` ```mermaid ```` fences in
-   Markdown, preview with either renderer in VS Code's theme colours. The preview:
-   * updates as you type and when files change on disk;
-   * keeps the diagram's written direction;
-   * never takes focus when an agent changes a file.
+    *Measure:* corpus tests cover every `targets` value.
+3.  **Tested with three agents.** Claude Code, Gemini CLI and Codex can check and fix diagrams with
+    Diagramist when run from a terminal, including VS Code's integrated terminal.
 
-   *Measure:* a Pele preview updates within 300 ms after typing stops, and a Mermaid.js preview
-   within 1 second.
-5. **Same errors in the editor.** The Problems panel shows the same errors the agent gets, labelled by
-   renderer, at the same file positions.
-6. **Export for slides and documents.** The user can export a diagram as SVG or PNG and choose:
-   * the renderer;
-   * the theme: light, dark, or VS Code's current theme;
-   * for PNG, the scale.
+    *Measures:*
+    *   Connecting one agent takes one VS Code command ("Diagramist: Connect AI Agent"). Without VS
+        Code, it takes the documented install line plus at most one registration line.
+    *   On a fixed set of 30 diagrams with planted errors, the share fixed within three checks is
+        recorded per agent, agent version and model. The target is 90%.
+4.  **Live preview in VS Code.** `.mmd`, `.mermaid`, `.md` and `.markdown` files preview with either
+    renderer.
+    *   **Colours:** Pele drawings use VS Code's theme colours. Mermaid.js drawings use Mermaid's own
+        `default` or `dark` theme, matched to VS Code's light or dark theme, so they look the way
+        GitHub draws them.
+    *   **Behaviour:** the preview redraws after a 150 ms pause in typing, keeps the diagram's source
+        direction (for example `LR`), and never takes focus.
 
-   Exported files stand on their own: they carry real colours and a fixed font, not VS Code's theme
-   colours.
-7. **Local and private.** No part of Diagramist makes network requests or calls an AI model.
-   Mermaid.js and Pele ship inside Diagramist at pinned versions. Remote images in diagrams are blocked
-   by default.
+    *Measure:* for diagrams up to 100 nodes, a Pele drawing appears within 300 ms after the pause and
+    a Mermaid.js drawing within 1 second. The P5 webview tests measure this.
+5.  **The same verdict in the editor.** For saved files, the Problems panel shows the checker's
+    errors, labelled by renderer, at the same file positions the agent gets. This holds whenever the
+    extension and the global checker have the same version.
 
-   *Measure:* the test suite passes with networking blocked.
-8. **Feature-based code on a shared core.** Code is organized by feature on top of a shared core that
-   does not depend on VS Code. Import rules are checked in CI.
+    *Measure:* a P4 test runs the CLI and the diagnostics on the same fixture files and compares codes
+    and positions.
+6.  **Export for slides and documents.** SVG or PNG, with a chosen renderer, theme (light, dark, or VS
+    Code's current kind) and PNG scale.
+    *   Exported files carry literal colour values instead of CSS variables, and name a common system
+        font stack.
+    *   PNG files are drawn with the fonts they were measured with, so labels fit. An SVG file opened
+        on another machine may substitute a different font.
+
+    *Measure:* P6 tests check the PNG pixel size (natural size × scale), and that SVG files contain no
+    `var(--pele` and no remote references.
+7.  **Local and private at run time.** At run time, no part of Diagramist makes network requests or
+    calls an AI model.
+    *   The one network step is the optional `npm install -g diagramist@<version>`, which "Diagramist:
+        Connect AI Agent" shows and the user confirms.
+    *   Mermaid.js and Pele are bundled at pinned versions.
+    *   Images in diagrams are never loaded.
+
+    *Measure:* the Node and webview test suites fail on any attempted outbound connection.
+8.  **Feature-based code on a shared core.** Features never import each other; entry files combine
+    them. The core does not depend on VS Code, Node or a browser page.
+
+    *Measure:* `npm run lint:deps` passes in CI.
 
 ## Non-Goals
 
 These are for v1.
 
-*   **Writing diagrams.** There is no prompt box and no AI call. The user's agent writes the diagrams;
-    Diagramist checks, shows and exports them.
-*   **Matching GitHub's or Notion's exact Mermaid.js version.** Diagramist pins one Mermaid.js version
-    and names it in every result.
-*   **Drawing with Mermaid.js outside VS Code.** Mermaid.js needs a browser to lay out a diagram. The
-    agent's checker checks Mermaid.js syntax but draws only with Pele; Mermaid.js drawings come from
-    VS Code's preview pane.
-*   **Images for agents to look at.** Results are text. Showing agents rendered images is a possible
-    later feature.
-*   **Math, icon packs, a Mermaid grammar, auto-completion, Obsidian internal links.**
+*   **Writing diagrams.** There is no prompt box and no AI call. The user's agent writes; Diagramist
+    checks, shows and exports.
+*   **Matching each site's Mermaid.js version.** Diagramist pins one Mermaid.js version and names it in
+    every result. It warns about beta and newer diagram types (D4), but cannot know which version a
+    site runs.
+*   **Checking Mermaid.js layout.** The checker parses with Mermaid.js but does not lay the diagram
+    out. Errors that Mermaid.js raises only while drawing are not caught (see Risks & Limits, R1).
+*   **Drawing with Mermaid.js outside VS Code.** Mermaid.js needs a browser to draw. Mermaid.js
+    drawings and exports come from VS Code's preview panel.
+*   **Images for agents.** Results are text.
+*   **Math, icon packs, a syntax-highlighting grammar, auto-completion, and Obsidian internal links.**
+    Labels with `$$…$$` show the TeX source, icon references are not drawn, and links to Obsidian
+    notes do nothing.
 *   **VS Code for the Web** (vscode.dev, github.dev).
-*   **Other diagram languages**, such as PlantUML, D2 and Graphviz.
+*   **Other diagram languages,** such as PlantUML, D2 and Graphviz.
 *   **A local web server, routing between VS Code windows, or agents controlling the preview.**
-*   **Changing agents' settings or instruction files without asking.**
-*   **Any backend.** Telemetry is open question 6.
+*   **Changing agents' settings, instruction files or skill folders without asking.**
+*   **Telemetry or any backend** (D6).
 
 ## Open Questions
 
-Questions 1–8 (launch, preview surface, targets, Mermaid.js version, export location, telemetry, CLI,
-agent guidance) were resolved on 2026-11-11 as decisions D1–D8. See the Technical Plan, section 9.
-
-Unknowns to verify while drafting:
-
-*   **Diagnostics:** does Claude Code's VS Code integration pass VS Code diagnostics to the model? Do
-    Gemini CLI's and Codex's?
-*   **Agent setup:** the exact `mcp add` commands, scopes and tool pre-approval settings for Gemini CLI
-    and Codex.
-*   **Agent limits:** each agent's size limit on tool output, and its support for structured results.
-*   **Runtime:** can VS Code's own runtime run the checker on machines without Node
-    (`ELECTRON_RUN_AS_NODE=1`)?
-*   **Browser stand-in:** Mermaid.js in Node works with jsdom. Lighter stand-ins and their sizes are
-    untested.
-*   **Preview conflicts:** what happens in VS Code's built-in Markdown preview when two extensions
-    render the same Mermaid fence?
+None blocks implementation. The unknowns that remain are listed under
+[Risks & Limits](#risks--limits), each with the decision it affects.
 
 ## Critical User Journeys (CUJs)
 
-### CUJ 1: Claude Code fixes a README diagram before the user sees it
+### CUJ 1: Claude Code fixes a README diagram
 
-*   **Given**: Diagramist is installed in VS Code and connected to Claude Code. The README targets
-    Mermaid.js.
+*   **Given**: The Diagramist extension and the global checker are installed, and Claude Code has the
+    Diagramist skill. The README's diagrams use the default targets, so Mermaid.js must parse them.
 *   **When**: The user asks Claude Code to add an architecture diagram to `README.md`.
 *   **Then**:
-    *   Claude Code writes the fence and calls the check.
-    *   The result reports "Mermaid.js: syntax error at README.md line 42, column 15", with a snippet
-        and a hint.
-    *   Claude Code fixes the line, checks again, and gets OK from both renderers.
-    *   The preview beside the README updates, and the Problems panel shows no Diagramist entries.
+    *   Claude Code writes the fence and runs `diagramist check README.md` (or the MCP tool).
+    *   The result reports `README.md:42:15: error [Mermaid.js parse] Expecting "]", got end of line`,
+        with the untrusted snippet and a hint.
+    *   Claude Code fixes the line, checks again, and gets "0 errors".
+    *   Once the file is saved, the preview shows the diagram and the Problems panel has no
+        Diagramist entries.
 
 ### CUJ 2: Gemini CLI checks a diagram with VS Code closed
 
-*   **Given**: Gemini CLI runs in a terminal, VS Code is not running, and the checker is connected at
-    user scope.
+*   **Given**: Gemini CLI runs in a terminal, `diagramist` is installed globally, and VS Code is not
+    running.
 *   **When**: The user asks Gemini to draw a sequence diagram in `docs/login.mmd`.
-*   **Then**: Gemini calls the check by path, fixes the diagram until it passes, and reports the result.
-    No network request is made.
+*   **Then**: Gemini checks the file by path and fixes it until it passes. If the same error comes
+    back three times, it stops and asks the user. No network request is made.
 
-### CUJ 3: Codex or CI runs the command-line check (decision D7)
+### CUJ 3: Codex or CI runs the command-line check
 
 *   **Given**: A repository has diagrams in `docs/`.
-*   **When**: Codex runs `diagramist check docs/`, or a pre-commit hook runs it.
-*   **Then**: The output lists `file:line:col: renderer: code: message` lines and exits with a non-zero
-    code when a target renderer fails.
+*   **When**: Codex runs `diagramist check docs/`, or a pre-commit hook runs it on the changed files.
+*   **Then**: The output follows the grammar in Technical Plan section 4. The exit code is 1 when any
+    diagram has an error, 2 when a file can't be checked, and 0 otherwise.
 
 ### CUJ 4: Exporting a diagram for a slide
 
 *   **Given**: A diagram previews correctly.
-*   **When**: The user runs "Diagramist: Export" and picks Pele, a light theme, and PNG at 3×.
-*   **Then**: A PNG file is written to the chosen folder. It shows the diagram with real colours and
-    the bundled font, and looks the same as the preview when pasted into Google Slides.
+*   **When**: The user runs "Diagramist: Export Diagram…" and picks Pele, the light theme, and PNG at
+    3×.
+*   **Then**:
+    *   Diagramist redraws the diagram off-screen with Pele in the light theme, and writes a PNG at
+        three times its natural size, with literal colours.
+    *   Pasted into Google Slides, it shows the same drawing as the light-theme preview.
+    *   If Pele reports an error for this diagram, the export stops, shows the error, and offers
+        Mermaid.js instead.
 
 ### CUJ 5: The renderers disagree
 
-*   **Given**: A Sankey diagram has a value written as `abc`, and the file targets Mermaid.js only.
+*   **Given**: A Sankey diagram has a value written as `abc`, and uses the default targets.
 *   **When**: The diagram is checked.
 *   **Then**:
-    *   The result shows Mermaid.js OK, plus a Pele syntax error marked as a warning, because Pele is
-        not a target.
-    *   The Problems panel shows a warning, not an error.
-    *   The agent is told not to change the diagram for Pele.
+    *   Mermaid.js parses it, and Pele's syntax error is reported as a warning. The exit code is 0.
+    *   The hint says to change the diagram for Pele only if it will be exported with Pele.
 
 ### CUJ 6: A diagram from a cloned repository points at a remote image
 
 *   **Given**: A cloned repository has a diagram with an `https` image.
 *   **When**: The user opens the preview.
-*   **Then**: The preview shows a "remote image blocked" placeholder, and no network request is made.
+*   **Then**: The image is not shown, and no network request is made.
 
 ### CUJ 7: Connecting an agent
 
-*   **Given**: Diagramist and Codex are installed.
-*   **When**: The user runs "Diagramist: Connect AI agent" and picks Codex.
+*   **Given**: The Diagramist extension and Codex are installed.
+*   **When**: The user runs "Diagramist: Connect AI Agent" and picks Codex.
 *   **Then**:
-    *   Diagramist shows the exact command for Codex at user scope, and runs it if the user agrees.
-    *   "Diagramist: Check agent setup" then reports Codex as connected and the checker as reachable.
+    *   Diagramist checks that `diagramist` is on the PATH, and offers the install command if it isn't.
+    *   After the user agrees, it copies the skill to `~/.agents/skills/diagramist/`.
+    *   If the MCP server ships, it runs `codex mcp add diagramist -- diagramist mcp` in a visible
+        terminal, again after the user agrees.
+    *   "Diagramist: Check Agent Setup" then reports the checker version and the skill copy.
 
-## Technical Plan (Architecture)
-
-This section starts with the parts that don't depend on an open question. Decisions D1–D8 (section
-9) are added one at a time as the author makes them.
+## Technical Plan (Proposed Architecture)
 
 ### 1. Parts and where they run
 
@@ -228,1018 +257,1387 @@ flowchart LR
   subgraph AG["AI agent: Claude Code, Gemini CLI or Codex"]
     A["agent loop"]
   end
-  subgraph CK["Diagramist checker (Node, stdio MCP server)"]
-    T["check tool"] --> W1["worker thread: core + Mermaid.js parser + Pele"]
+  subgraph CK["diagramist (Node): CLI, or MCP server if it ships"]
+    C1["coordinator"] --> PW1["Pele worker"]
+    C1 --> MW1["Mermaid.js worker with jsdom"]
   end
   subgraph VS["VS Code"]
     subgraph EH["extension host"]
-      DG["diagnostics"] --> W2["worker thread: core"]
-      EX["export commands"]
-      AS["agent setup"]
+      DG["diagnostics coordinator"] --> PW2["Pele worker"]
+      DG --> MW2["Mermaid.js worker with jsdom"]
+      AS["agent setup, report, version check"]
     end
     subgraph WV["preview webview (browser)"]
-      PV["preview: Pele or Mermaid.js"]
+      PV["preview and export: Pele mount or Mermaid.js render"]
     end
   end
   F[("diagram files")]
-  A -- "check(path)" --> T
-  A -- "edits" --> F
-  F -- "file changes" --> DG
-  F -- "text" --> PV
-  EX -- "asks for SVG / PNG" --> PV
+  A -- "diagramist check file" --> C1
+  A -- "edits and saves" --> F
+  F -- "saved files" --> DG
+  F -- "editor text" --> PV
 ```
 
-*Checked on 2026-11-11 with Pele 1.13.0 and Mermaid.js 12.3.0: both accept this diagram.*
+*Checked on 2026-11-13 with Pele 1.13.0 and Mermaid.js 12.3.0: both accept this diagram.*
 
-Code runs in four places:
+Code runs in five kinds of place:
 
-*   **Checker.** A Node program that the agent starts and talks to over stdio using MCP. It never
-    contacts VS Code.
-*   **Extension host.** VS Code's Node process for extensions. It runs diagnostics, export commands and
-    agent setup.
-*   **Preview webview.** A browser page inside VS Code. It draws diagrams with Pele or Mermaid.js and
-    produces the export images.
-*   **Worker threads.** In both the checker and the extension host, the core runs in a worker thread
-    with a time limit. A slow diagram therefore can't freeze the agent's tool or VS Code.
+*   **The checker process.** Agents start it; it never contacts VS Code.
+*   **VS Code's extension host.** It runs diagnostics, agent setup and the version check.
+*   **The preview webview.** A browser page that draws with Pele or Mermaid.js and produces exports.
+*   **A Pele worker thread** inside each Node process that checks diagrams.
+*   **A Mermaid.js worker thread** inside each Node process that checks diagrams. It loads jsdom, a
+    library that imitates a browser, which Mermaid.js needs in Node.
 
-The agent and VS Code never talk to each other. They meet only through the files: the agent edits a
-file, and the extension sees the change and updates its diagnostics and the preview.
+Pele and Mermaid.js run in separate workers. With jsdom's browser globals present, Pele assumes a
+browser and tries jsdom's canvas, which is not implemented (seen on 2026-11-11). Phase P2 tests one
+alternative: give Pele an explicit text measurer through its public `measurer` option. If that works,
+one worker runs both renderers, and this diagram and section 3 change to match.
 
-### 2. The core
+The agent and VS Code never talk to each other. They meet only through files: the agent edits and
+saves a file; the extension checks saved files and previews the editor text.
 
-The core is shared code that runs in all four places. It imports nothing from VS Code, nothing that
-needs a browser page, and nothing that works only in Node.
+### 2. Modules
+
+The **core** (`src/core/`) has no dependency on VS Code, Node or a browser page. It is type-checked
+without the DOM library and without Node types.
 
 | Module | Job |
 | --- | --- |
-| `blocks` | Finds diagrams. A `.mmd` or `.mermaid` file is one diagram. In Markdown it finds ```` ```mermaid ```` and `~~~mermaid` fences, including fences indented in lists or quotes. It records each block's start line, indentation and quote prefix, handles CRLF line endings, byte-order marks and tabs, and numbers blocks from 1. |
-| `positions` | Turns a renderer's position, which counts from the start of the diagram, into a file position: 1-based line and column, with columns in UTF-16 code units. Errors without a position are attached to the block's first line and marked that way. |
-| `renderers/mermaid` | The only code that imports `mermaid`. It checks syntax with `mermaid.parse()` and maps `hash.loc` to positions. In the browser it can also draw. |
-| `renderers/pele` | The only code that imports `pele`. It checks with `render()` using fixed options, maps `PeleError` to positions, and draws anywhere. |
-| `result` | The result format (version 1). It builds results and prints them as short text and as JSON. |
-| `policy` | Fixed render and security settings: Pele `images: false` and `autoDirection: false`, a fixed `now` for checks, Mermaid.js `securityLevel: "strict"`, and size limits that can only be lowered. |
-| `hints` | One-line hints for each error code. It recognises types neither renderer supports, such as ZenUML, and fence lines pasted in as diagram text. |
-| `targets` | Decides which renderers must pass for a block: both by default, or what the block's `%% diagramist: targets=…` comment says (decision D3). |
-| `compat` | The table of diagram types with the Mermaid version that introduced each, and the warnings for types newer than the oldest destination (decision D4). |
-| `theme` | Maps VS Code theme colours to Pele's `--pele-*` variables and to a Mermaid.js theme, and holds the fixed light and dark export themes. |
+| `blocks` | Finds diagrams. A `.mmd` or `.mermaid` file is one diagram. In `.md` and `.markdown` files, markdown-it finds fences whose info string starts with `mermaid` (case-insensitive), following CommonMark rules for nesting, indentation and unclosed fences. For each diagram line, it records how many UTF-16 code units the container stripped (list indentation, `>` quote markers, fence indentation). |
+| `positions` | Turns a renderer position into a file position: 1-based line and column, with columns in UTF-16 code units. It also keeps the diagram-relative line and column. |
+| `renderers/mermaid/check` | The only core code that imports `mermaid`. It checks with `mermaid.parse()`, which is asynchronous, and maps errors (section 4). It relies on a browser-like global environment that its host provides. |
+| `renderers/pele/check` | The only core code that imports `pele`. It checks with `render()` using the fixed policy, and maps `PeleError`. |
+| `result` | The result format, version 1 (section 4): building results, and printing them as text and JSON. |
+| `policy` | Fixed render settings: Pele `images: false`, `autoDirection: false`, `responsive: false` and a fixed `now` of 2000-01-01T00:00:00Z for checks; Mermaid.js `securityLevel: "strict"`; the limits in [Risks & Limits](#risks--limits). |
+| `hints` | One-line hints per class and code, "did you mean" suggestions, and the one-line-late hint. |
+| `targets` | Reads `%% diagramist: targets=…` (D3). |
+| `compat` | The list of known diagram keywords, each flagged `beta` or `external`, plus the beta and newer-type notices (D4). |
+| `samples` | One minimal valid diagram for each keyword in `compat`. |
 
-Mermaid.js needs a stand-in for the browser when it runs in Node. The Node entry points (the checker
-and the extension-host worker) load jsdom before the core's Mermaid.js adapter, so the core itself
-has no Node-only imports.
+**Shared layers outside the core:**
 
-### 3. What a check returns (result format, version 1)
+| Layer | Contents |
+| --- | --- |
+| `src/draw/` (browser only) | `pele-draw.ts` (Pele `mount`, with its own error display), `mermaid-draw.ts` (`mermaid.render`) and `theme-map.ts`. Only webview code imports this layer. |
+| `src/platform/node/` | The coordinator, the worker pool, worker message types, file reading, the jsdom loader and the stderr logger. |
+| `src/platform/vscode/` | The log channel, settings, Workspace Trust and the in-memory counts. |
+| `src/platform/messages.ts` | Type-only definitions of the messages between the extension host and the webview. |
 
-A check takes a file path, or diagram text as a fallback. It reads the saved file, finds its blocks,
-and runs both renderers on each block inside the worker.
+### 3. Execution model
+
+One coordinator, in `src/platform/node/coordinator.ts`, serves both the checker process and the
+extension host.
+
+*   **API:**
+    *   `checkFile(path, options): Promise<CheckResult>`;
+    *   `checkText(text, options): Promise<CheckResult>`, for exactly one diagram.
+*   **Steps:**
+    1.  Resolve and validate the path (section 6).
+    2.  Read the file and find blocks.
+    3.  Resolve each block's targets.
+    4.  Send the block to the Pele worker and the Mermaid.js worker at the same time.
+    5.  Merge both verdicts into a `BlockResult`.
+
+    Blocks of one file are checked in order.
+*   **Starting workers:**
+    *   A worker starts on the first diagram the process sees. It loads its renderer and posts
+        `ready`.
+    *   The start-up budget is 20,000 ms. If a worker misses it, the worker is stopped, the block gets
+        class `tool` and code `start-timeout`, and the next request starts a fresh worker.
+*   **Time limit per block:** 2,000 ms, counted from when a ready worker receives the block. On
+    timeout, the worker is stopped and the block gets `tool` / `timeout`. Requests still queued for
+    that worker go to a fresh worker; they are not failed.
+*   **Crashes:** if a worker exits or throws, the block gets `tool` / `crash`, and the worker restarts.
+*   **Messages**, defined in `src/platform/node/worker-messages.ts`:
+    *   to a worker: `{ type: "check", id, text }`;
+    *   from a worker: `{ type: "ready", renderer, version }`, `{ type: "result", id, verdict }`,
+        `{ type: "log", level, message }`.
+*   **Queues:**
+    *   The CLI and the MCP server keep a first-in, first-out queue per worker and never drop a
+        request.
+    *   The extension's diagnostics keep at most 8 queued requests per window. A newer request for
+        the same file replaces an older one that hasn't started; the replaced request ends as
+        `superseded`, which is internal and never shown.
+*   **Exit codes for `diagramist check`:**
+    *   2 if any file had a tool or input problem;
+    *   otherwise 1 if any diagram had an error;
+    *   otherwise 0. Warnings and notices never change the exit code.
+
+### 4. Result format, version 1 (normative)
+
+This section is the single definition. Other sections refer to it. Within version 1, fields are only
+ever added.
 
 ```text
 CheckResult
   schemaVersion: 1
-  checker:   { name: "diagramist", version }
-  renderers: { mermaid: "12.3.0", pele: "1.13.0" }
-  file:      absolute path, as read from disk
-  blocks:    list of BlockResult
-  summary:   { blocks, errors, warnings }
+  checker:   "diagramist <version>"
+  renderers: { mermaid: "<version>", pele: "<version>" }
+  file:      absolute path, or null for text input
+  status:    "checked" | "no-diagrams" | "not-found" | "not-a-file" | "unsupported-file"
+             | "too-large" | "not-text" | "bad-input"
+  message:   null when status is "checked" or "no-diagrams"; otherwise one line
+  blocks:    BlockResult[]      -- empty unless status is "checked"
+  summary:   { blocks, errors, warnings, notices }
 
 BlockResult
-  index, startLine, endLine     -- 1-based; file lines of the diagram text
-  type                          -- e.g. "flowchart", or null
-  targets                       -- renderers that must pass (decision D3)
-  verdicts: { mermaid: Verdict, pele: Verdict }
-  warnings: list of { code, message }   -- e.g. "theme is ignored by Pele"
+  index:       1-based
+  firstLine:   file line of the diagram's first line (after the opening fence); 1 for text input
+  lastLine:    file line of the diagram's last line
+  type:        the diagram type from mermaid.parse(), else Pele's mermaidType, else null
+  targets:     subset of ["mermaid", "pele"]; empty for targets=none
+  targetsFrom: { source: "default" } | { source: "comment", line }
+  results:     { mermaid: RendererResult, pele: RendererResult }
+  notices:     Notice[]
 
-Verdict
-  ok: true
-  or ok: false with
-    errors: list of Error   -- at most one today: both renderers stop at the first error
+RendererResult
+  outcome: "pass" | "fail" | "tool-error"
+  depth:   "parse" (Mermaid.js) | "render" (Pele)
+  errors:  Problem[]            -- empty on pass; at most one entry in v1
 
-Error
-  class:    "invalid" | "unsupported" | "too-large" | "tool"
-  severity: "error" for a target renderer, "warning" otherwise
-  code:     the renderer's own code, e.g. "syntax"
-  message:  first line only
-  position: { line, column, diagramLine, diagramColumn, unit: "utf16" } or null
-            -- line/column count from the file's start;
-            -- diagramLine/diagramColumn count from the diagram's first line
-  snippet:  up to 200 characters: the line before and the reported line
-  hint:     one line
-  retry:    whether editing the diagram can fix it
+Problem
+  severity:   "error" if the renderer is a target, or the class is "tool"; otherwise "warning"
+  class:      "invalid" | "unsupported" | "too-large" | "tool"
+  code:       from the code lists below
+  message:    one line, at most 200 characters, untrusted
+  position:   { line, column, diagramLine, diagramColumn } | null    -- 1-based, UTF-16 columns
+  anchorLine: file line used when position is null (equals firstLine)
+  snippet:    at most 200 characters: the line before and the reported line, untrusted; or null
+  hint:       one line, or null
+  retry:      true only for class "invalid"
+
+Notice
+  code:    "beta-type" | "newer-type" | "bad-targets-comment" | "fences-stripped"
+  message: one line
 ```
 
-Agents read the text form first. A passing file takes one line, and each failing block a few lines.
-For example:
+**Code lists:**
+
+*   **Pele:** Pele's own codes, passed through: `syntax`, `semantic`, `limit`,
+    `unsupported-diagram`.
+*   **Mermaid.js:** Mermaid.js has no error codes, so Diagramist defines these:
+    *   `parse`, for a grammar error;
+    *   `unknown-type`, for "No diagram type detected";
+    *   `limit`, when the source is over 50,000 characters (Diagramist checks this before parsing);
+    *   `other`, for any other exception.
+*   **Tool:** `timeout`, `start-timeout`, `crash`, `internal`.
+
+**Classes:**
+
+*   **`invalid`:**
+    *   Pele `syntax` and `semantic`; Mermaid.js `parse` and `other`;
+    *   `unknown-type` and `unsupported-diagram` when the first keyword is unknown (a "did you mean"
+        hint is added).
+*   **`unsupported`:**
+    *   the first keyword is a known external type, such as `zenuml`;
+    *   or Pele says `unsupported-diagram` for a type Mermaid.js parsed; this also adds the
+        `newer-type` notice.
+*   **`too-large`:** the `limit` codes.
+*   **`tool`:** the tool codes.
+
+**Mapping Mermaid.js errors:**
+
+*   **Jison grammar errors** carry `hash.loc`. The position is `last_line`, with column
+    `last_column + 1`, because Mermaid's columns count from 0. This was checked on 2026-11-11: for the
+    same error Mermaid.js gave line 3, column 3, and Pele gave line 3, column 4.
+*   **The message** is the line of `error.message` that starts with "Expecting", or else the first
+    line. Grammar token names are translated, for example `SQE` → `"]"`, `PE` → `")"`, `NEWLINE` →
+    "end of line", `EOF` and `$end` → "end of diagram". The expected list is cut to five tokens plus
+    "…".
+*   **Langium-based types** (architecture, gitGraph, info, packet, pie, radar, treemap and the others
+    that `@mermaid-js/parser` handles) throw errors without `hash`. Phase P1 records each error
+    shape's fields with a corpus case. A 1-based line and column are used when the error provides
+    them; otherwise `position` is null.
+
+**Text form.** The CLI and the MCP tool both print this:
 
 ```text
-README.md: 2 diagrams, 1 error (Mermaid.js 12.3.0, Pele 1.13.0)
-README.md:42:15 error [Mermaid.js syntax] Expecting 'SQE', got 'NEWLINE'
-   41 |   A[Client] --> B[API
-   42 |   B --> C[(DB)]
-  hint: the "[" opened on line 41 is not closed; errors are often reported one line late.
-README.md:88 ok (sequence)
+header:  <file>: <n> diagram(s), <e> error(s), <w> warning(s) [Mermaid.js <ver> parse, Pele <ver> render]
+problem: <file>:<line>:<column>: <severity> [<Renderer> <code>] <message>
+         <file>:<anchorLine>: <severity> [<Renderer> <code>] <message> (no position; the diagram starts here)
+snippet:   diagram text (untrusted):
+           <line-1> | <text>
+           <line> | <text>
+hint:      hint: <hint>
+notice:  <file>:<firstLine>: notice [<code>] <message>
+pass:    <file>:<firstLine>: ok (<type>): Mermaid.js parses, Pele renders     (only with --verbose)
+cap:     … <k> more problem(s) not shown (output capped at 4,000 characters)
+summary: <f> file(s), <b> diagram(s), <e> error(s), <w> warning(s)          (CLI, last line)
 ```
 
-Rules:
+Renderer names are written "Mermaid.js" and "Pele" in text, and `mermaid` and `pele` in JSON keys and
+comments. A passing file prints only its header line. The cap applies to each file's text. Most
+models use roughly four characters per token, so the cap is about 1,000 tokens; the P3 evaluation
+records the real counts.
 
-*   Only renderers that are targets produce errors; the others produce warnings.
-*   Each renderer reports its first error per block, because both stop at the first.
-*   A check result never contains SVG. Render options and Mermaid `config` are never inputs.
-*   `errors` and `warnings` are lists from version 1. Within version 1, fields are only ever added.
-*   The classes "unsupported" and "too-large" set `retry: false`, and their hint tells the agent not to
-    rewrite the diagram because of them.
+Example:
 
-The MCP server offers one read-only tool, `check`, marked `readOnlyHint: true`, `idempotentHint: true`
-and `openWorldHint: false`. Its description says when to use it: after writing or editing any Mermaid
-diagram, call `check` on the file and fix errors until it passes; after three failures on the same
-error, stop and ask the user. There is no `export` tool in v1 (decision D5).
+```text
+README.md: 2 diagrams, 1 error, 0 warnings [Mermaid.js 12.3.0 parse, Pele 1.13.0 render]
+README.md:42:15: error [Mermaid.js parse] Expecting "]", got end of line
+  diagram text (untrusted):
+  41 |   A[Client] --> B[API
+  42 |   B --> C[(DB)]
+  hint: the "[" opened on line 41 is not closed; errors are often reported one line late.
+```
 
-### 4. Time limits and load
+### 5. Agent interface
 
-*   Each check runs in a worker thread with a 2-second limit, which can be configured. On timeout the
-    worker is stopped and a fresh one started. The block gets class "tool" and code "timeout".
-*   The extension's diagnostics wait for a 400 ms pause in typing. They cover open documents and files
-    changed on disk only, and skip files over 1 MB.
-*   The preview draws inside the webview. When a diagram breaks, it keeps the last good drawing, dimmed,
-    under the error.
+**The CLI**, `packages/diagramist`:
 
-### 5. Security and privacy
+*   `diagramist check <paths…> [--json] [--verbose]`
+    *   It checks files and folders. In folders it takes `.md`, `.markdown`, `.mmd` and `.mermaid` files
+        and skips `node_modules` and hidden folders.
+    *   `--json` prints one `CheckResult` per line, as JSON.
+    *   It uses the exit codes in section 3.
+*   `diagramist mcp` starts the MCP server over stdio.
+*   `diagramist --self-test` checks every sample with both renderers. It exits 0 when every result
+    matches the samples' expected results, and 2 otherwise.
+*   `diagramist --version` and `diagramist --help`.
 
-*   **No network from any part.** The webview's Content Security Policy allows only Diagramist's own
-    scripts and styles, and images only from the extension and `data:`. It allows no connections.
-    Command links are off.
-*   **Images and scripts in diagrams.** Pele images are off by default. Mermaid.js uses
-    `securityLevel: "strict"`, which drops click callbacks and cleans labels. Blocked images show a
-    placeholder.
+**The MCP server** ships in v1 only under the rule in D7.
+
+*   **Tool:** one tool, `check`, with inputs `path` or `text`.
+    *   `path` is resolved against the server's working directory. `text` is one diagram, with
+        positions counted from its first line.
+    *   Passing both, or neither, gives status `bad-input`.
+*   **Output:** text content only, the text form from section 4, with no `outputSchema`. `isError` is
+    true only for a status other than `checked` or `no-diagrams`, or for any tool error.
+*   **Annotations:** `readOnlyHint: true`, `idempotentHint: true`, `openWorldHint: false`.
+*   **Description:** at most 80 words; a test counts them. Draft: "Check Mermaid diagrams in a file
+    with Mermaid.js and Pele. Call it after writing or editing any Mermaid diagram, and fix errors
+    until it passes. Results give the first error per renderer with its file line. Don't rewrite a
+    diagram for 'unsupported' or 'too-large' errors, or for warnings. After three failures on the
+    same error, stop and ask the user."
+
+**The skill.** One `skills/diagramist/SKILL.md` (D8) teaches agents:
+
+*   when and how to check;
+*   how to read results;
+*   the `targets` comment;
+*   the stop-after-three rule;
+*   short tips per diagram type.
+
+### 6. Security and privacy
+
+*   **No network at run time.**
+    *   The webview's Content Security Policy is `default-src 'none'; script-src 'nonce-<nonce>';
+        style-src <webview.cspSource> 'unsafe-inline'; img-src <webview.cspSource> data:`.
+    *   Inline styles are allowed because both renderers put styles inside their SVG. The remaining
+        risk is CSS injection from diagram text, with no script execution.
+    *   Command links are off.
+*   **Images are never loaded.** Pele runs with `images: false`. Mermaid.js images are blocked by the
+    policy above, and nothing is shown in their place.
 *   **Links** open only through VS Code, after the user confirms. Obsidian-style internal links do
     nothing.
-*   **Safety settings** (images, link schemes, limits) can be set only at user or machine scope, so a
-    cloned repository's workspace settings can't loosen them.
-*   **Restricted Mode** (an untrusted folder): preview and diagnostics stay on; images, links and agent
-    setup are off.
-*   **Logs** include diagram text only at trace level.
+*   **File reading:**
+    *   The checker accepts only regular files ending in `.md`, `.markdown`, `.mmd` or `.mermaid`
+        (case-insensitive), after resolving the real path. Anything else gets status
+        `unsupported-file` or `not-a-file`, and its content is not read.
+    *   Files must be at most 1 MB and valid UTF-8; a byte-order mark is removed.
+*   **Untrusted text.** Snippets and messages carry diagram text, which may come from a cloned
+    repository. The text form labels them "diagram text (untrusted)". Logs include them only at
+    trace level.
+*   **Exports** remove any remote `href` from SVG files.
+*   **Restricted Mode** (an untrusted folder): the preview and diagnostics stay on; agent setup is off.
+    Images and links are already off everywhere.
+*   **Agents' files.** Diagramist changes agents' settings and skill folders only through the agents'
+    own commands, or a visible file copy, after the user agrees.
 
-### 6. Observability
+### 7. Observability
 
-*   Every result, log line and diagnostic report names the Diagramist, Mermaid.js and Pele versions.
-*   The extension uses one VS Code log channel, "Diagramist", which follows VS Code's log level. The
-    checker logs to stderr, because MCP uses stdout for protocol messages.
-*   A self-test draws one small sample of every supported diagram type with each renderer. It runs on
-    first activation and with `--self-test`, so packaging faults show up before an agent meets a false
-    error.
-*   "Diagramist: Copy diagnostic report" collects versions, settings, agent setup status and recent
-    counts. It leaves out diagram text and paths unless the user opts in.
+*   **Versions everywhere.** Results, the diagnostic report and the log session header name the
+    Diagramist, Mermaid.js and Pele versions.
+*   **Logs.** The extension writes to one VS Code log channel, "Diagramist", which follows VS Code's
+    log level. The checker logs to stderr, because MCP owns stdout. Its level comes from the
+    `DIAGRAMIST_LOG` environment variable (`error`, `warn`, `info`, `debug` or `trace`; the default is
+    `warn`).
+*   **Self-test.** `diagramist --self-test` is for troubleshooting. CI runs the same samples.
+*   **The diagnostic report.** "Diagramist: Copy Diagnostic Report" copies a Markdown report to the
+    clipboard. It has five parts:
+    *   versions (extension, the checker found on the PATH, Mermaid.js, Pele, VS Code);
+    *   environment (OS, remote kind, UI kind);
+    *   the two settings;
+    *   agent setup status;
+    *   this window's counts.
 
-### 7. Code layout (feature-based)
+    It leaves out file paths, workspace names and diagram text. A quick pick lets the user include
+    paths.
+
+### 8. Code layout (feature-based)
 
 ```text
-skills/diagramist/SKILL.md   agent guidance (decision D8)
+skills/diagramist/SKILL.md
 src/
-  core/                      shared, runtime-neutral (section 2)
-  features/
-    checker/     server/     stdio MCP server
-    cli/         server/     diagramist check (decision D7)
-    diagnostics/ host/       Problems panel
-    preview/     host/ webview/
-    export/      host/ webview/
-    agent-setup/ host/       connect, check and disconnect agents
+  entries/          cli.ts, extension.ts, webview.ts, pele-worker.ts, mermaid-worker.ts
+  core/             blocks, positions, renderers/{mermaid,pele}/check, result, policy, hints,
+                    targets, compat, samples
+  draw/             pele-draw.ts, mermaid-draw.ts, theme-map.ts          (browser only)
   platform/
-    node/                    worker threads, jsdom loader, file access
-    vscode/                  log channel, settings, workspace trust
-    browser/                 webview messaging
+    node/           coordinator, worker-pool, worker-messages, read-file, dom-standin, logger
+    vscode/         log, settings, trust, counts
+    messages.ts     host <-> webview message types (types only)
+  features/
+    checker/        cli.ts, mcp-server.ts, tool-description.ts, self-test.ts      (Node)
+    diagnostics/    diagnostics.ts                                            (extension host)
+    preview/        host/{panel,html,export-command}.ts, webview/{main,export}.ts
+    agent-setup/    agents.ts, connect.ts, check-setup.ts, disconnect.ts, version-check.ts,
+                    report.ts                                                 (extension host)
 ```
 
-Import rules, checked in CI with dependency-cruiser:
+**Import rules,** checked by dependency-cruiser in CI:
 
-*   `core` imports only itself, plus the two renderers inside `core/renderers/*`.
-*   Features import `core` and `platform`, never each other.
-*   Code in `webview/` and `server/` never imports code from `host/`.
-*   Only `core/renderers/mermaid` imports `mermaid`, and only `core/renderers/pele` imports `pele`.
+*   **Core:** `core/**` imports only `core/**`. Only `core/renderers/mermaid/**` imports `mermaid`, only
+    `core/renderers/pele/**` imports `pele`, and only `core/blocks/**` imports `markdown-it`.
+*   **Draw layer:** `draw/**` imports `core/**`, and `mermaid` or `pele` only in its own draw file. Only
+    `features/preview/webview/**` and `entries/webview.ts` import `draw/**`.
+*   **Platform:**
+    *   `platform/node/**` imports `core/**` and Node built-ins, and never `vscode` or
+        `platform/vscode/**`. Only `platform/node/dom-standin.ts` imports `jsdom`.
+    *   `platform/vscode/**` may import `vscode` and `core/**`.
+    *   `platform/messages.ts` has no runtime imports.
+*   **Features:** they never import each other.
+    *   `features/checker/**` never imports `vscode` or `platform/vscode/**`.
+    *   `features/*/webview/**` never imports `vscode`, `platform/node/**` or `platform/vscode/**`.
+*   **Entries:** only `entries/**` may import more than one feature.
 
-Each feature exports one `register` function, and the extension's activation calls them in order.
+**Type checking:**
 
-### 8. Choices with one defensible answer (made without a gate)
+*   `tsconfig.core.json` covers `src/core/**` with `lib: ["ES2022"]`, no `types`, and
+    `skipLibCheck: true`, because the renderers' type files mention DOM types. Core code can't create
+    DOM values, so it can't call `mount()`.
+*   `tsconfig.webview.json` adds the DOM library for `src/draw/**`, `src/features/preview/webview/**`
+    and `src/entries/webview.ts`.
+*   `tsconfig.node.json` covers the rest.
 
-*   **Build:** TypeScript in strict mode. esbuild builds four bundles: extension host, webview,
-    checker and worker.
-*   **Runtime:** Node 20 or later, because Pele requires it.
-*   **Renderer versions:** `mermaid` and `pele` are pinned to exact versions. Upgrades go only through a
-    pull request that runs the regression set (Pele's and Mermaid's examples plus our edge cases) and
-    compares verdicts, codes and positions.
-*   **IDs:** internal ID and prefix `diagramist` for settings, commands, the MCP server name and the log
-    channel.
-*   **Tests:**
-    *   Vitest for the core and features;
-    *   `@vscode/test-electron` for the extension;
-    *   MCP contract tests with the official SDK client;
-    *   Playwright with a local Chromium for drawing and export in the webview.
+### 9. Choices with one defensible answer
 
-### 9. Decisions
+*   **Build.** TypeScript 7 in strict mode, used only for type checking. esbuild 0.28 builds the
+    bundles:
+    *   `extension.cjs` (CommonJS, `vscode` external);
+    *   `webview.js` (an IIFE for the browser);
+    *   `cli.mjs`, `pele-worker.mjs` and `mermaid-worker.mjs` (ES modules for Node).
+*   **Node 20 or later.** `npm view pele engines` gives `>=20`, checked on 2026-11-11.
+*   **Pinned versions.** `mermaid` 12.3.0, `pele` 1.13.0, `markdown-it` 15.0.3 and `jsdom` 31.0.0 are
+    pinned exactly.
+*   **Upgrade policy.** An upgrade that changes any verdict is at least a minor release, with a
+    "Validator changes" changelog entry. A major version of either renderer means a Diagramist major
+    version.
+*   **Prefix.** Settings, commands, the MCP server name and the log channel all use `diagramist`.
+*   **No default keybinding.** The preview command is in the editor title bar and the command palette.
+    That avoids clashes with existing shortcuts, such as Markdown's Ctrl+K V and Ctrl+K D.
 
-| # | Decision | Status |
-| --- | --- | --- |
-| D1 | How agents start the checker (open question 1) | **decided: A, npm package, installed globally** |
-| D2 | Preview surface (open question 2) | **decided: A, Diagramist's own preview panel** |
-| D3 | How targets are declared (open question 3) | **decided: A, both by default, comment to opt out** |
-| D4 | Mermaid.js version policy (open question 4) | **decided: C, newest version plus warnings for newer types** |
-| D5 | Where PNG export runs (open question 5) | **decided: A, from the preview panel only** |
-| D6 | Telemetry (open question 6) | **decided: A, none** |
-| D7 | CLI in v1 (open question 7) | **decided: A, yes** |
-| D8 | Where agent guidance lives (open question 8) | **decided: B, short tool descriptions plus one shared `SKILL.md`** |
+### 10. Decisions
 
-#### D1: agents start the checker from an npm package installed globally
-
-*Decided 2026-11-11. The author was shown three options: A, an npm package; B, a launcher inside the
-extension; C, both. After asking which one the Elephant would pick, the author took A.*
-
-*   **The package.** The checker is published to npm as `diagramist`. Its command `diagramist` has the
-    subcommands `mcp` (the stdio MCP server), `--version` and `--self-test`. Decision D7 decides
-    whether it also offers `check` for shells and CI.
-*   **How agents run it.** Agent settings run `diagramist mcp` from a global install
-    (`npm install -g diagramist`), not `npx`. A test on 2026-11-11 showed that `npx` keeps npm's own
-    process running next to the checker, adding about 96 MB for every agent session.
-*   **Connecting an agent.** "Diagramist: Connect AI agent" checks for `diagramist` on the PATH. If it
-    is missing, it offers to run `npm install -g diagramist@<the extension's version>`, then runs the
-    agent's own `mcp add` command at user scope, or shows it for the user to copy.
-*   **Versions.** The extension and the npm package are built from the same repository and the same
-    version tag. "Check agent setup" warns when the installed checker's version differs from the
-    extension's.
-*   **When it fails:** without Node, or without access to the npm registry for the one-time install.
-    The launcher from option B can be added later without breaking anything, if locked-down networks
-    need it.
-
-Resource use, measured on 2026-11-11 (Node 22, resident memory of one process):
-
-| Checker state | Memory |
+| # | Decision (as revised 2026-11-13) |
 | --- | --- |
-| Started, nothing loaded | about 56 MB |
-| Pele loaded, one diagram drawn | about 63 MB |
-| Mermaid.js and jsdom loaded, two checks | about 155–159 MB |
+| D1 | Agents run the checker from the npm package `diagramist`, installed globally. The extension checks the installed version when it activates. |
+| D2 | Diagramist's own preview panel. |
+| D3 | Mermaid.js is the default must-pass renderer. Both renderers always run. A comment opts a diagram into Pele, or out of both. |
+| D4 | The newest Mermaid.js is pinned. Only beta and newer-type notices ship; the version table is deferred. |
+| D5 | Export from the preview panel only. |
+| D6 | No telemetry. The extension keeps in-memory counts for the diagnostic report. |
+| D7 | The CLI ships. Whether the MCP server ships in v1 is decided by the P3 agent evaluation. |
+| D8 | A short tool description plus one `SKILL.md`, copied into each agent's own skills folder. |
 
-So the checker loads Mermaid.js only on the first check that needs it, and not at all when Mermaid.js
-is not a target for the file. Each agent session starts its own checker.
+#### D1: agents run the checker from a global npm install
 
-In Node, the two renderers must not share browser stand-ins. With jsdom's `window` and `document`
-present, Pele assumes it is in a browser and tries jsdom's canvas, which is not implemented (seen in a
-test on 2026-11-11). Pele's built-in width table (`metricsMeasurer`) is not part of its public exports.
-So Pele and Mermaid.js run in two separate worker threads. The Pele worker has no browser globals, and
-the Mermaid.js worker loads jsdom and starts only when a check needs Mermaid.js.
+*Decided 2026-11-11 (options: an npm package; a launcher inside the extension; both). The author took
+the npm package.*
+
+*   **Install.** `npm install -g diagramist` installs the command `diagramist`. Agents run `diagramist
+    check` or `diagramist mcp`, not `npx`, which keeps npm's own process running beside the checker:
+    about 96 MB more per session, measured on 2026-11-11.
+*   **Version check.** When the extension activates, it runs `diagramist --version` once, with a 5 s
+    limit. If the version differs from the extension's, it shows a non-blocking notice with a "Copy
+    update command" button (`npm install -g diagramist@<extension version>`). If the command is
+    missing, the notice appears only after an agent has been connected in this profile.
+*   **Failure cases.** These are covered under Risks & Limits (R3, R4): no Node, no access to npm for
+    the one-time install, Windows `.cmd` shims, Node version managers, and EACCES.
 
 #### D2: one Diagramist preview panel
 
-*Decided 2026-11-11 (options: A, own panel; B, VS Code's built-in Markdown preview; C, both). The
-author took A.*
+*Decided 2026-11-11 (options: own panel; VS Code's built-in Markdown preview; both).*
 
-*   **Opening it.** "Diagramist: Open Preview to the Side" appears as a button in the editor title bar
-    for `.mmd`, `.mermaid` and Markdown files. Its keybinding is limited to those files, so it never
-    replaces Markdown's own preview shortcut.
-*   **One panel.** It follows the active editor, with a lock toggle. It shows every diagram in the
-    file in order, each labelled with its block number and line, and scrolls to the diagram at the
-    cursor.
-*   **Renderer switch.** Pele or Mermaid.js, per panel. Both draw in the webview.
-*   **Updates.** It redraws from the editor's text after a pause in typing (300 ms for Pele, up to
-    1 second for Mermaid.js) and when files change on disk. It never takes focus. When an agent changes
-    a file that isn't shown, the status bar says so.
-*   **Status line.** It shows the file, block, renderer and its version, the update time, a short
-    content hash and the number of warnings. When the file has unsaved changes, it adds "unsaved
-    changes: agents check the saved file". The checker never talks to VS Code, so it can't give this
-    warning itself.
-*   **Layout badge.** When the user turns `diagramist.preview.autoDirection` on and Pele changes a
-    diagram's layout, a badge says so, for example "shown top to bottom: panel narrower than 640 px".
-*   **Theme.** It follows VS Code's light, dark and high-contrast themes. Pele gets them through the
-    `--pele-*` to `--vscode-*` map; Mermaid.js gets them as its "base" theme with `themeVariables` built
-    from the same colours.
-*   **Security.** The strict policy in section 5. Export buttons live in this panel (decision D5).
-*   **Accessibility.**
-    *   Diagrams can be reached with Tab.
-    *   Errors are announced to screen readers and shown as text as well as colour.
-    *   Diagram titles and descriptions (`accTitle` and `accDescr`) are kept.
-*   **Restoring.** After a reload the panel reopens on the same file and block. It stores only those
-    two values, with a version number.
-*   **Not in v1:** drawing diagrams inline in VS Code's built-in Markdown preview. It can be added later
-    as an opt-in without breaking anything.
+*   **Opening.** "Diagramist: Open Preview to the Side" is a button in the editor title bar for `.mmd`,
+    `.mermaid`, `.md` and `.markdown` files.
+*   **What it shows.** It follows the active editor, unless locked with "Diagramist: Toggle Preview
+    Lock". It shows every diagram in the file in order, and scrolls to the one at the cursor.
+*   **Renderer and theme.** A switch chooses Pele or Mermaid.js; the default comes from
+    `diagramist.preview.defaultRenderer`. Theme handling follows Goal 4.
+*   **Status line.** It shows the file, the diagram, the renderer and its version, and the time of the
+    last update. When the editor has unsaved changes, it adds "unsaved changes: agents and the Problems
+    panel check the saved file".
+*   **Errors.** A diagram with an error keeps its last good drawing, dimmed, under the error, which is
+    shown as text and announced to screen readers. Pele drawings use `mount()`'s own error display.
+*   **Accessibility.** Diagrams can be reached with Tab. Errors use text as well as colour.
+    `accTitle` and `accDescr` are kept.
+*   **Restore.** After a reload, the panel reopens on the same file and diagram.
 
-#### D3: both renderers must pass unless the diagram opts out
+#### D3: Mermaid.js decides by default; a comment opts into Pele
 
-*Decided 2026-11-11. The options were: A, both by default with a comment to opt out; B, A plus a
-project file with folder rules; C, defaults by file type plus both overrides. The author took A.*
+*Decided 2026-11-11 as "both by default". Changed by the author on 2026-11-13, by accepting the review
+fix CA-01.*
 
-*   **Default targets:** Mermaid.js and Pele, so a passing diagram works on GitHub and Notion and also
-    exports with Pele.
-*   **Opting out:** a comment line inside the diagram: `%% diagramist: targets=mermaid`,
-    `targets=pele` or `targets=mermaid,pele`. It can be the first line or anywhere in the diagram. A
-    test on 2026-11-11 showed both renderers accept the line at the top and after the type line.
-*   **Showing the source.** Each block's result shows its targets and where they came from: "default",
-    or "comment on line N".
-*   **Bad comments.** A comment with unknown values leaves the default in place and adds a warning.
-*   **Later, without breaking anything:** a project file with folder rules (option B).
+*   **Defaults.** Both renderers run on every diagram. Default targets are `mermaid`.
+*   **The comment.** `%% diagramist: targets=mermaid,pele`, `targets=pele` or `targets=none` sets them.
+    It goes on the diagram's first line, or the line directly after the type line. Both positions were
+    tested on 2026-11-11; it is not supported inside Mermaid frontmatter.
+*   **Bad comments.** Unknown values keep the default and add a `bad-targets-comment` notice.
+*   **Export.** Exporting with Pele refuses a diagram that Pele can't draw, and offers Mermaid.js.
 
-#### D4: the newest Mermaid.js, with warnings for newer diagram types
+#### D4: the newest Mermaid.js, with beta and newer-type notices
 
-*Decided 2026-11-11. The options were: A, the newest version only; B, GitHub's version; C, the newest
-version plus warnings. The author took C. GitHub does not publish the Mermaid version it runs; its own
-docs say to render an `info` diagram to see it.*
+*Decided 2026-11-11 as "newest version plus a version table". Changed by the author on 2026-11-13, by
+accepting the review fix CA-15.*
 
-*   **The pin.** Diagramist pins the newest Mermaid.js at release time (12.3.0 on 2026-11-11) to an
-    exact version. Upgrades go through the regression pull request.
-*   **The table.** A small table, `core/compat/mermaid-types.json`, maps each diagram keyword to the
-    Mermaid version that introduced it and says whether Pele supports it. It is built once from
-    Mermaid's changelog and docs. A CI check fails when the pinned Mermaid.js recognises a keyword the
-    table doesn't list, so the table can't fall behind an upgrade.
-*   **The oldest destination.** Users can set the oldest Mermaid version they publish to (for example,
-    GitHub's). Because D3 means no project file, the setting lives in two places, and "Connect AI agent"
-    copies the VS Code setting into the agent's command:
-    *   the checker option `--oldest-mermaid <version>`, in the agent's MCP command;
-    *   the VS Code setting `diagramist.oldestMermaidVersion`.
-*   **Warnings.**
-    *   A diagram whose type is newer than the oldest destination gets a warning, for example "venn-beta
-        was added in Mermaid 12.0; your oldest destination is 11.4".
-    *   Until a version is set, only beta types (keywords ending in `-beta`) are flagged, with the
-        warning "beta diagram type; may not render on sites with older Mermaid".
-    *   These are always warnings, never errors.
+*   **Pin.** Mermaid.js 12.3.0, pinned exactly.
+*   **Notices.**
+    *   `beta-type`: the diagram's keyword ends in `-beta`.
+    *   `newer-type`: Mermaid.js parses the diagram but Pele reports `unsupported-diagram`. Pele
+        supports every type built into Mermaid 12.1.0, so this marks a type newer than 12.1, which
+        older Mermaid versions on some sites may not draw.
+*   **Deferred.** The version table, the oldest-version setting, the flag and the tool input are listed
+    under Future Improvements.
 
 #### D5: export from the preview panel only
 
-*Decided 2026-11-11. The options were: A, the preview panel only; B, the panel plus SVG and PNG from
-the checker; C, the panel plus SVG only from the checker. The author took A.*
+*Decided 2026-11-11.* The details are in the plan's phase P6.
 
-*   **The command.** "Diagramist: Export Diagram…" runs from a panel button or the command palette. It
-    asks for:
-    *   the diagram, when the file has several;
-    *   the renderer: Pele or Mermaid.js;
-    *   the format: SVG or PNG;
-    *   the theme: light, dark, or VS Code's current theme;
-    *   for PNG, the scale: 1× to 4×, default 2×.
-
-    VS Code's save dialog suggests a name such as `README-2.pele.png`, next to the source file.
-*   **SVG.** Colours and fonts are written into the file as plain values, read from the drawn diagram.
-    The file therefore doesn't depend on CSS variables, which some slide tools don't support. The font
-    is a common stack, such as Helvetica, Arial or sans-serif, that matches the preview.
-*   **PNG.** The panel's browser draws the SVG onto a canvas at the chosen scale. Pele's SVG contains
-    no `foreignObject` (checked on 2026-11-11), and Mermaid.js exports are drawn with
-    `htmlLabels: false`, so the canvas stays readable.
-*   **Saving.** The panel sends the bytes to the extension host, which writes the file. The panel itself
-    never touches the disk.
-*   **Not in v1:** export by agents or scripts. A checker `export` tool (option B, or SVG-only option C)
-    can be added later without breaking anything.
+*   **Off-screen redraw.** Export redraws the chosen diagram off-screen with the chosen renderer and
+    theme, at natural size. Pele uses `responsive: false`; Mermaid.js uses `htmlLabels: false`.
+*   **SVG.** Colours are written into the file as literal values.
+*   **PNG.** It is drawn on a canvas at the chosen scale, up to a limit (see Risks & Limits).
+*   **Panel.** If no panel is open, the command opens one for the active editor first.
 
 #### D6: no telemetry
 
-*Decided 2026-11-11. The options were: A, none; B, opt-in telemetry with no diagram content. The
-author took A.*
+*Decided 2026-11-11.* Nothing is sent anywhere.
 
-*   No part of Diagramist sends data anywhere, which keeps Goal 7 without exceptions. The README says
-    so.
-*   For debugging, the extension and the checker keep local counts:
-    *   checks run;
-    *   errors by renderer and code;
-    *   attempts until the first pass;
-    *   repeated identical errors.
+*   **What is counted.** In memory, for each window: checks run, files with errors, errors by renderer
+    and code, and tool errors by code. The diagnostic report includes them.
+*   **What is not counted.** The checker keeps no counts, because nothing could read them.
 
-    "Diagramist: Copy diagnostic report" includes these counts, and the user decides whether to share
-    them in an issue.
+#### D7: the CLI ships; MCP depends on the P3 evaluation
 
-#### D7: the command-line checker ships in v1
+*Decided 2026-11-11 (CLI in v1: yes). Extended by the author on 2026-11-13, by accepting the review fix
+CA-06.*
 
-*Decided 2026-11-11. The options were: A, yes; B, the MCP server only. The author took A.*
+*   **Evaluation.** Phase P3 runs the agent evaluation twice per agent: first with the CLI plus
+    `SKILL.md`, then with the MCP server.
+*   **The rule.** The MCP server ships in v1 if either of these holds for at least one of the three
+    agents:
+    *   it raises the share of diagrams fixed within three checks by 10 percentage points or more;
+    *   the agent can't run `diagramist check` without a permission prompt on every call, while the
+        MCP tool can be pre-approved.
 
-*   **Command.** `diagramist check <paths…>` takes files or folders. In folders it checks `.mmd`,
-    `.mermaid` and `.md` files and skips `node_modules` and hidden folders.
-*   **Output.**
-    *   Each problem is one line, `path:line:col: severity [renderer code] message`, followed by the
-        indented snippet and hint lines, the same as the text form in section 3.
-    *   Passing files are listed only with `--verbose`.
-    *   A summary line comes last.
-*   **Exit codes:**
-    *   0: every target renderer passes;
-    *   1: at least one error;
-    *   2: a tool or usage problem, such as a missing file or a timeout.
-*   **Options:**
-    *   `--json` prints one result per file in the section 3 format, one JSON object per line;
-    *   `--oldest-mermaid <version>` (D4);
-    *   `--verbose`.
-*   **Same engine.** The core and worker are shared with the MCP server, so the CLI and the agent tool
-    always agree.
-*   **Docs** include a pre-commit hook and a CI example.
-*   **Stability.** The text output is for people and agents. Scripts should use `--json`, whose fields
-    follow the result format's versioning rules.
+    The outcome is recorded in this document.
 
-#### D8: short tool descriptions plus one shared `SKILL.md`
+#### D8: one shared skill, copied per agent
 
-*Decided 2026-11-11. The options were: A, tool descriptions only; B, descriptions plus a shared skill
-file; C, a package per agent. The author took B.*
+*Decided 2026-11-11.*
 
-*   **The tool description** for `check` stays under about 80 words, because agents receive it on every
-    turn. It says when to call `check`, and when to stop and ask the user.
-*   **The skill file.** One file, `skills/diagramist/SKILL.md`, ships in the npm package and the
-    extension. Its frontmatter description reads: "Use when writing or editing Mermaid diagrams: check
-    them with Diagramist and fix errors before finishing." The body, about 150 lines at most, covers:
-    *   when to check: after every change to a diagram;
-    *   how to check: the MCP tool `check` with a path, or `diagramist check <path>` in a shell;
-    *   how to read results: renderers, error classes, `retry`, warnings, and errors reported one line
-        late;
-    *   the `%% diagramist: targets=…` comment;
-    *   the rule to stop after three failures on the same error;
-    *   short tips per diagram type;
-    *   what not to do: don't rewrite a diagram for "unsupported" or "too-large" errors, don't add
-        `%%{init}%%` theme blocks, and don't use HTML labels.
-*   **Installing it.** "Connect AI agent" copies the skill into the chosen agent's user-level skills
-    folder, after the user agrees: `~/.claude/skills/diagramist/` for Claude Code, and the documented
-    skills folders for Codex and Gemini CLI (to be confirmed in the Detailed Implementation). The
-    README shows how to copy it by hand.
-*   **Versions.** The skill names the Diagramist version it was written for. "Check agent setup" flags a
-    copy that is out of date.
-*   **Per-type tips live here.** They replace the brief's idea of serving examples through an MCP
-    resource or attaching them to errors.
-*   **Later, without breaking anything:** per-agent packages (option C).
+*   **Contents.** `skills/diagramist/SKILL.md` has the frontmatter `name: diagramist`, the description
+    "Use when writing or editing Mermaid diagrams: check them with Diagramist and fix errors before
+    finishing.", and `metadata.diagramistVersion`. Its body is at most 150 lines.
+*   **Where it goes.** "Connect AI Agent" copies it into the chosen agent's own skills folder after
+    the user agrees, so no agent shares a folder with another:
+    *   `~/.claude/skills/diagramist/` for Claude Code;
+    *   `~/.gemini/skills/diagramist/` for Gemini CLI;
+    *   `~/.agents/skills/diagramist/` for Codex.
+
+    The sources are under Additional Resources.
 
 ## Alternatives Considered
-
-The sources are the brief's "Alternatives Weighed", the author's decisions after the review, the
-options the author passed over in D1–D8, and the existing tools found on 2026-11-11.
 
 ### Alternative 1: A standalone app with its own web UI
 
 *   **Pros**: works from any browser, including a phone, and needs no VS Code.
-*   **Cons**: a server to run and secure, a second place to edit diagrams, and it sits away from where
-    agents work.
-*   **Reason for Rejection**: Rejected by author: they want to work inside VS Code.
+*   **Cons**: a server to run and secure, a second place to edit diagrams, and it sits away from the
+    editor where agents write files.
+*   **Reason for Rejection**: Rejected by author: diagrams live in the same repositories as the code,
+    and a separate app means a second editor and a server to secure.
 
 ### Alternative 2: The extension calls Gemini CLI, or another agent CLI, to write diagrams
 
-*   **Pros**: a prompt box inside VS Code, with no separate agent session.
+*   **Pros**: a prompt box inside VS Code.
 *   **Cons**:
-    *   It ties the tool to one agent.
-    *   Starting an agent for each request takes seconds and breaks easily across the agents'
-        frequent releases.
-    *   It needs that agent's login on the machine.
-*   **Reason for Rejection**: Rejected by author: any agent should be able to drive Diagramist, so it
-    calls no AI model.
+    *   it ties the tool to one agent;
+    *   starting an agent for each request takes seconds;
+    *   it needs that agent's login on the machine.
+*   **Reason for Rejection**: Rejected by author: tying Diagramist to one agent's CLI would exclude the
+    others, so Diagramist calls no AI model and any agent can drive it.
 
-### Alternative 3: Pele only (the shape after the Goldfish review)
+### Alternative 3: Pele only
 
-*   **Pros**: one renderer, about 7 MB of memory, checks in under a millisecond, and no browser
-    stand-in.
-*   **Cons**: GitHub, Notion and documentation sites draw with Mermaid.js, so a diagram that passes
-    Pele can still fail there.
-*   **Reason for Rejection**: Rejected by author on 2026-11-11. The destinations include GitHub, Notion
-    and documentation sites, so Diagramist checks and previews with both renderers.
+*   **Pros**: one renderer, about 7 MB more memory than a bare Node process, and checks in under a
+    millisecond.
+*   **Cons**: GitHub, Notion and documentation sites draw with Mermaid.js, so a Pele pass can still
+    fail there.
+*   **Reason for Rejection**: Rejected by author (2026-11-11), because those sites are the main
+    destinations.
 
 ### Alternative 4: The names "Pele Renderer", "Pele Diagrams for VS Code", "Diagramsmith" and "Lavagram"
 
-*   **Pros**: the first two say what the tool is built on, and the last two were free on every registry
-    checked.
-*   **Cons**: the first two read as official Obsidian products and put third-party names (Pele, VS Code)
-    into a permanent ID. With Mermaid.js added, they also describe only half the tool.
+*   **Pros**: the first two say what the tool is built on, and all four were free on the VS Code
+    Marketplace, Open VSX and npm (checked 2026-11-11).
+*   **Cons**:
+    *   The first two read as official Obsidian products, put a third-party name into a permanent ID,
+        and describe half the tool once Mermaid.js is added.
+    *   "Diagramsmith" is longer and suggests making diagrams rather than checking them.
+    *   "Lavagram" relies on a volcano reference to Pele that fits less once Mermaid.js is an equal
+        partner.
 *   **Reason for Rejection**: Rejected by author, in favour of "Diagramist".
 
 ### Alternative 5: Contribute to an existing Pele preview extension
 
-*   **Pros**: less new code and an existing user base. The candidates were
-    `pdanpdan.mermaid-pele-preview`, `bumkom.markdown-viewer-lite` and `saeris.markdown-mermaid-pele`.
-*   **Cons**: they are Pele-only previews, a few weeks old, with 42–130 installs each. None has an agent
-    checker, Mermaid.js, a CLI or export.
-*   **Reason for Rejection**: Not adopted. The author's later decisions (both renderers, an agent
-    checker, a CLI, export) go well beyond these previews. The author was not asked about contributing
-    upstream as a separate question; it is raised at this section's approval gate.
+*   **Pros**: less new code and an existing user base.
+*   **Cons**: the three candidates are Pele-only previews, with no agent check, Mermaid.js, CLI or
+    export. Their listings were checked on 2026-11-11.
+*   **Reason for Rejection**: Not adopted. The author approved this section on 2026-11-11 without
+    choosing to contribute upstream. Working with those projects later remains possible.
 
-### Alternative 6: Use an existing Pele CLI (`@ahmedelgabri/pele-cli`, `@simhozebs/pele-cli`)
+### Alternative 6: Use an existing Pele CLI
 
-*   **Pros**: they already check and draw diagrams with Pele.
-*   **Cons**: Pele only, no MCP server, no mapping of positions into Markdown files, and no Mermaid.js.
-*   **Reason for Rejection**: Not adopted, for the same scope reasons as Alternative 5.
+*   **Pros**: `@ahmedelgabri/pele-cli` and `@simhozebs/pele-cli` already check or draw with Pele.
+*   **Cons**: Pele only; their npm descriptions mention no MCP server, no Markdown position mapping and
+    no Mermaid.js.
+*   **Reason for Rejection**: Not adopted. Diagramist needs both renderers and positions in the file.
 
 ### Alternative 7: Use an existing Mermaid MCP server
 
-*   **Pros**: agents can call them today.
-*   **Cons**: Mermaid.js only, with no Pele. Several draw through a headless browser, which is heavy.
-    None maps positions into files or ties into the editor.
-*   **Reason for Rejection**: Not adopted. They cover neither Pele nor the editor side of the loop.
+*   **Pros**: `@zombie-mermaid/mcp`, `@peng-shawn/mermaid-mcp-server`, `mermaid-mcp-server` and
+    `mermaid-mcp-app` can be called by agents today.
+*   **Cons**: each names one Mermaid renderer and no Pele. `@peng-shawn/mermaid-mcp-server` converts
+    to PNG through a headless browser. None mentions file positions or editor integration.
+*   **Reason for Rejection**: Not adopted. They cover neither Pele nor the editor side.
 
 ### Alternative 8: Offer the tools through VS Code's own tool APIs
 
-*   **Pros**: no separate program, and the tools sit next to the preview.
-*   **Cons**: `vscode.lm.registerTool` and the MCP server provider API reach only VS Code's built-in chat
-    (Copilot), not Claude Code, Gemini CLI or Codex.
-*   **Reason for Rejection**: Rejected on technical grounds in the Goldfish review. The same checker
-    can still be registered there later as an extra.
+*   **Pros**: no separate program.
+*   **Cons**: `vscode.lm.registerTool` and the MCP server provider API reach only VS Code's built-in
+    chat (Copilot), not Claude Code, Gemini CLI or Codex.
+*   **Reason for Rejection**: Rejected on technical grounds (brief, finding 1). The same server can be
+    registered there later.
 
-### Alternative 9: A local web server inside the extension, linking agents and the preview live
+### Alternative 9: A local web server in the extension, linking agents and the preview
 
 *   **Pros**: agents could drive the preview directly.
-*   **Cons**:
-    *   It needs a port, a token and protection against web pages calling it.
-    *   Every VS Code window runs its own server, so a request can reach the wrong window.
-    *   The server disappears when VS Code closes, and it fails in remote setups.
+*   **Cons**: a port, a token, and protection against web pages calling it; one server per window; it
+    disappears when VS Code closes, and fails in remote setups.
 *   **Reason for Rejection**: Rejected by author when accepting the brief's reshaped design on
-    2026-11-11.
+    2026-11-11. Files are a simpler link, and work with VS Code closed.
 
-### Alternative 10: Load Pele or Mermaid.js from a CDN
+### Alternative 10: Load the renderers from a CDN
 
 *   **Pros**: a smaller package.
 *   **Cons**: it breaks offline use, needs a looser Content Security Policy, and lets the renderer
     change without a release.
-*   **Reason for Rejection**: Rejected on technical grounds in the Goldfish review. It also conflicts
-    with Goal 7.
+*   **Reason for Rejection**: Rejected on technical grounds. It conflicts with Goal 7.
 
 ### Alternative 11: Render on the extension host's main thread
 
 *   **Pros**: simpler code.
-*   **Cons**: neither renderer has a time limit, so one slow diagram would freeze every extension in the
-    window.
-*   **Reason for Rejection**: Rejected on technical grounds in the Goldfish review. Pele's own docs
-    recommend a worker when a time limit is needed.
+*   **Cons**: neither renderer has a time limit, so one slow diagram would freeze every extension in
+    the window.
+*   **Reason for Rejection**: Rejected on technical grounds. Pele's security page recommends a worker
+    when a time limit is needed.
 
-### Alternative 12: Check Mermaid.js syntax with `@mermaid-js/parser`, without a browser stand-in
+### Alternative 12: Check Mermaid.js syntax with `@mermaid-js/parser`, without jsdom
 
-*   **Pros**: no jsdom, so about 100 MB less memory per checker.
+*   **Pros**: no browser stand-in in the Mermaid.js worker.
 *   **Cons**: version 2.0.1 parses only 12 types: architecture, cynefin, eventmodeling, gitGraph, info,
-    packet, pie, radar, railroad, treemap, treeView and wardley. It does not parse flowcharts, sequence,
-    class, state, ER, Gantt or the other common types (checked on 2026-11-11).
-*   **Reason for Rejection**: Rejected on technical grounds: it misses the most-used types. Worth
-    revisiting as it grows. It could then replace jsdom one diagram type at a time.
+    packet, pie, radar, railroad, treemap, treeView and wardley. It does not parse flowchart,
+    sequence, class, state, ER, Gantt or other common types (checked on 2026-11-11).
+*   **Reason for Rejection**: Rejected on technical grounds. To revisit as that parser grows.
 
 ### Alternative 13: Draw with Mermaid.js in the checker through a headless browser
 
-*   **Pros**: Mermaid.js drawings and exports without VS Code.
+*   **Pros**: Mermaid.js layout errors and Mermaid.js exports without VS Code.
 *   **Cons**: a browser download of hundreds of megabytes, seconds to start, and far more memory.
-*   **Reason for Rejection**: Rejected on technical grounds for v1. Mermaid.js drawings come from VS
-    Code's panel (decision D5).
+*   **Reason for Rejection**: Rejected on technical grounds for v1. Risk R1 records what this leaves
+    uncaught.
 
-### Options passed over in decisions D1–D8
-
-Each row was rejected by the author when making that decision. For D1 the author asked for the
-Elephant's pick before choosing.
+### Options passed over in D1-D8
 
 | Decision | Option not taken | Main drawback | Can it be added later? |
 | --- | --- | --- | --- |
-| D1 | B: launcher inside the extension | Needs VS Code installed, and is no use for CI | Yes, without breaking anything |
-| D1 | C: both npm and launcher | Two install paths and two releases to keep in step | Yes |
-| D2 | B: VS Code's built-in Markdown preview | Two surfaces, VS Code's preview security settings, double drawing with other Mermaid extensions | Yes, as an opt-in |
-| D2 | C: both | All of B's costs in v1 | Yes |
-| D3 | B: project file with folder rules | One more file to document; agents must know it exists | Yes, without breaking anything |
-| D3 | C: defaults by file type | Three layers of rules to explain | Possibly |
-| D4 | A: newest version only | Misses diagram types that GitHub lacks | Not needed: C includes it |
-| D4 | B: GitHub's version | Manual tracking, and more disagreement with Pele | No |
-| D5 | B: checker exports SVG and PNG | About 3 MB more, Pele only, and font-measuring work | Yes |
-| D5 | C: checker exports SVG only | Google Slides needs PNG | Yes |
-| D6 | B: opt-in telemetry | A collection service, a privacy policy, an exception to "no network", and low opt-in | Only by changing Goal 7 |
-| D7 | B: MCP server only | No CI or pre-commit use; agents need MCP set up | Not needed |
-| D8 | A: tool descriptions only | Too thin, and costs tokens on every turn | Not needed |
-| D8 | C: a package per agent | Three package formats to maintain | Yes |
+| D1 | A launcher inside the extension | Needs VS Code installed; no use for CI | Yes |
+| D1 | Both the npm package and a launcher | Two install paths and two releases to keep in step | Yes |
+| D2 | VS Code's built-in Markdown preview | Two surfaces; VS Code's preview security settings; clashes with other Mermaid extensions | Yes, as an opt-in |
+| D2 | Both | All of the above in v1 | Yes |
+| D3 | Both renderers must pass by default | False errors for diagrams GitHub accepts (review fix CA-01) | Per diagram, by comment |
+| D3 | A project file with folder rules | One more file per repository | Yes |
+| D4 | GitHub's Mermaid.js version | GitHub doesn't publish it; manual tracking | No |
+| D4 | A version table and oldest-version setting | Hand-made data and three copies of one value (review fix CA-15) | Yes |
+| D5 | The checker exports SVG and PNG | About 3 MB more, Pele only, and font-measuring work | Yes |
+| D6 | Opt-in telemetry | A collection service, a privacy policy and an exception to Goal 7 | Only by changing Goal 7 |
+| D7 | MCP server only | No CI or pre-commit use | No |
+| D8 | A package per agent | Three package formats to maintain | Yes |
 
---------------------------------------------------------------------------------
+## Risks & Limits
+
+| # | Risk | Impact | Mitigation | Remaining risk |
+| --- | --- | --- | --- | --- |
+| R1 | Mermaid.js is only parsed, at one version | A pass can still fail on a site running another version, or while Mermaid.js draws | The wording in section 4; beta and newer-type notices (D4); P1 corpus cases that parse but fail to draw | Draw-time errors and version differences are not caught |
+| R2 | The renderers disagree | Pele rejects some diagrams Mermaid.js accepts, and the reverse | Mermaid.js decides by default; Pele failures are warnings until a Pele export (D3) | Pele exports may need edits |
+| R3 | Launch failures | `diagramist` not found or not runnable: Windows `.cmd` shims, Node version managers, EACCES, no Node | A Windows `cmd /c` form; `docs/agents.md` covers the version manager and EACCES cases; the version check (D1) | Setups outside the documented cases |
+| R4 | Version drift | The extension updates itself; the global checker does not | The version check at activation (D1); every result names its versions | Until the user updates, the editor and the agent may disagree |
+| R5 | Memory per agent session | About 60 MB idle and about 160 MB with Mermaid.js, measured on 2026-11-11 in one thread; workers add more | P2 measures the real layout and sets a budget; workers start only on the first diagram | Many parallel sessions multiply the cost |
+| R6 | Reading arbitrary files | A pre-approved tool could read files the user didn't intend | Diagram file types only, regular files, real paths; untrusted labels (section 6) | Any diagram file the user's account can read can be checked |
+| R7 | One diagram freezes the preview | The webview draws without a time limit | A typing pause; the 50,000-character and 5,000-edge limits; the last good drawing kept | A pathological diagram can stall the preview panel (not VS Code itself) until it is closed |
+| R8 | Supply chain | The extension offers `npm install -g diagramist`, so the npm name and its publish token matter | Reserve the name before P3; publish only from CI, with provenance and 2FA | A compromised npm account |
+| R9 | Agents' CLIs change | Commands and skill folders change between agent releases | Use the agents' own commands; re-check before each release (P7, P8); dated sources | Breakage between checks |
+| R10 | One maintainer | 2 renderers × 3 agents × 3 operating systems × remote setups | Support tiers in `docs/agents.md`; CI covers the checker on three operating systems | Best-effort combinations may break |
+
+**Limits enforced in code:**
+
+| Limit | Value | Where |
+| --- | --- | --- |
+| File size | 1 MB | `platform/node/read-file.ts` (status `too-large`) |
+| Diagram source | 50,000 characters | Pele's default, also applied before Mermaid.js parsing |
+| Edges | 5,000 | Pele's default |
+| Time per diagram check | 2,000 ms after the worker is ready | coordinator |
+| Worker start-up | 20,000 ms | coordinator |
+| Diagnostics queue | 8 per window | coordinator (diagnostics mode) |
+| Text output | 4,000 characters per file | `core/result/format-text.ts` |
+| PNG export | 16,384 px per side and 100,000,000 px in total | `features/preview/webview/export.ts` |
+| Package size | 15 MB packed, for each of the VSIX and the npm tarball | `scripts/check-size.mjs` |
+
+**Unknowns, and the decision each affects:**
+
+*   **U1.** How many tokens of each result each agent's model sees, and whether it reads text or
+    structured content. This affects the Goal 1 measure; P3 records it.
+*   **U2.** How each agent pre-approves running `diagramist check`, or the MCP `check` tool. This
+    affects D7's rule and `docs/agents.md`; P3 and P7 record it.
+*   **U3.** Whether Gemini CLI and Codex read the skill folders listed in D8 in their current
+    versions. This affects agent setup; P7 verifies it with each agent.
+*   **U4.** Which Mermaid.js version GitHub runs. This affects the deferred version table, not v1.
 
 ## Non-Functional Requirements
 
-*   **Security and privacy.**
-    *   No network access and no AI calls anywhere (Goal 7, D6). Remote images are blocked by default,
-        and the webview has a strict Content Security Policy (section 5).
-    *   Agents' settings, instruction files and skill folders are changed only after the user agrees,
-        and only through the agents' own `mcp add` and `mcp remove` commands or a visible file copy.
-    *   Logs and the diagnostic report contain no diagram text or paths unless the user opts in.
-*   **Performance and resource use.**
-    *   A check of a file with up to 10 diagrams returns within 500 ms once the workers are warm.
-    *   The first Mermaid.js check may take up to 2 seconds while the Mermaid.js worker loads.
-    *   An idle checker uses about 60 MB. With Mermaid.js loaded it uses about 160 MB (measured on
-        2026-11-11).
-    *   Preview update times are as in Goal 4.
-    *   Tool output stays under 1,000 tokens for a failing diagram and under 100 for a passing file.
-*   **Rollout and rollback.**
-    *   Odd minor versions are pre-releases on the Marketplace and Open VSX, and use the `next` tag on
-        npm. Even minor versions are stable.
-    *   The extension, the npm package and the skill share one version number and are released from one
-        tag.
-    *   Rollback means publishing the previous code as a new patch version. Users can also pin a version
-        with `npm install -g diagramist@<version>` and VS Code's "Install Another Version".
-    *   Settings are never renamed without keeping the old key readable. Saved panel state carries a
-        version number, and unknown versions fall back to defaults.
-    *   The off switch for agent tools is "Diagramist: Disconnect agent", which runs the agent's own
-        `mcp remove`. A VS Code setting can't stop the checker, because agents run it themselves.
+*   **Security and privacy.** Goal 7 and Technical Plan section 6.
+*   **Performance and resource use:**
+    *   A check of a file with up to 10 diagrams returns within 500 ms with warm workers on a typical
+        laptop. CI asserts 1,500 ms and reports the measured time.
+    *   The first Mermaid.js check also pays worker start-up; it is budgeted at 20 s and was about 2 s
+        in testing.
+    *   Memory figures and the budget are set in P2 (R5).
+*   **Rollout and rollback:**
+    *   **Versions.** Odd minor versions are pre-releases (`npm publish --tag next`, `vsce publish
+        --pre-release`, `ovsx publish --pre-release`); even minor versions are stable. The extension,
+        the npm package and the skill share one version number and are released from one tag.
+    *   **Rollback.** Publish the previous code as a new patch. Users can pin a version with
+        `npm install -g diagramist@<version>` and VS Code's "Install Another Version".
+    *   **Renderer upgrades** follow the upgrade policy in Technical Plan section 9.
+    *   **The off switch for agents.** "Diagramist: Disconnect AI Agent" runs the agent's own
+        `mcp remove`, if the MCP server ships, and deletes that agent's skill copy, after the user
+        agrees. It leaves the global `diagramist` install, so the agent can still run
+        `diagramist check` until the user uninstalls it.
 
-### Additional Resources
+## Additional Resources
 
-*   Pele: https://pele.run (API, compatibility, theming and security pages) and
+*   **Pele:** https://pele.run (the API, compatibility, theming and security pages) and
     https://github.com/obsidianmd/pele.
-*   Mermaid.js: https://mermaid.js.org.
-*   MCP TypeScript SDK 2.x: `@modelcontextprotocol/server` and `@modelcontextprotocol/client`.
-*   VS Code extension guides: webviews, diagnostics, Workspace Trust, publishing with `vsce` and
-    `ovsx`.
-*   Agent docs:
-    *   Claude Code: `claude mcp add`, skills in `~/.claude/skills/`.
-    *   Gemini CLI: `gemini mcp add --scope user`, skills in `~/.gemini/skills/` or
-        `~/.agents/skills/`.
-    *   Codex: `codex mcp add`, `~/.codex/config.toml`, user skills in `$HOME/.agents/skills`
+*   **Mermaid.js:** https://mermaid.js.org.
+*   **MCP TypeScript SDK 2.x:** `@modelcontextprotocol/server` and `@modelcontextprotocol/client`
+    2.4.0. The server package depends on `zod ^4.2.0`; checked with `npm view` on 2026-11-11.
+*   **VS Code extension guides:** webviews, diagnostics, Workspace Trust, and publishing with `vsce`
+    and `ovsx`.
+*   **Agent references:**
+    *   **Claude Code:** `claude mcp add --scope user`, and skills in `~/.claude/skills/` (Anthropic's
+        Claude Code documentation).
+    *   **Gemini CLI:** `gemini mcp add --scope user`, and skills in `~/.gemini/skills/` (third-party
+        guides, checked 2026-11-11; P7 verifies them against Google's documentation).
+    *   **Codex:** `codex mcp add`, `~/.codex/config.toml`, and user skills in `$HOME/.agents/skills`
         (OpenAI's skills page, checked 2026-11-11).
-*   EGM: the brainstorm brief, [concepts_brief.md](../egm/concepts_brief.md), and Google's Elephant-Goldfish
-    Model, pinned commit `e9e1f06`.
+*   **How this design was made:** the brief ([concepts_brief.md](../egm/concepts_brief.md)) and
+    Google's Elephant-Goldfish Model (EGM), pinned commit `e9e1f06`. EGM is a design process: the
+    author's main session (the "Elephant") drafts the design, and fresh reviewers with no prior
+    context (the "Goldfish") critique it. Each "gate" is a single-choice decision by the author.
 
-### Future Improvements
+## Future Improvements
 
-*   **A launcher inside the extension** (D1 option B), for networks that block npm.
-*   **Inline diagrams in VS Code's built-in Markdown preview**, as an opt-in (D2 option C).
-*   **A project file with folder rules for targets** (D3 option B).
-*   **An `export` tool for agents and scripts** (D5 option B or C).
-*   **Per-agent packages:** a Claude Code plugin, a Gemini CLI extension, a Codex plugin (D8 option C).
-*   **Replacing jsdom with `@mermaid-js/parser`**, one diagram type at a time, as that parser grows
-    (Alternative 12).
-*   **Rendered images for agents to look at**, opt-in, for agents that can read images.
-*   **Registering the same checker for VS Code's built-in chat** through the MCP server provider API
-    (Alternative 8).
+*   **A launcher inside the extension,** for networks that block npm (D1).
+*   **Inline diagrams in VS Code's built-in Markdown preview,** as an opt-in (D2).
+*   **A project file with folder rules for targets** (D3).
+*   **Version-aware warnings** (D4): a table of the Mermaid version that introduced each diagram type,
+    an oldest-version setting, a CLI flag and a tool input.
+*   **An `export` tool for agents and scripts** (D5).
+*   **Per-agent packages:** a Claude Code plugin, a Gemini CLI extension, a Codex plugin (D8).
+*   **More errors per check,** by skipping the failing line and checking again, and a "stop" signal in
+    results, once the agent evaluation shows they help.
+*   **Replacing jsdom with `@mermaid-js/parser`,** one type at a time (Alternative 12).
+*   **Rendered images for agents to look at,** opt-in.
+*   **Registering the checker for VS Code's built-in chat** (Alternative 8).
 
 --------------------------------------------------------------------------------
 
 ## Detailed Implementation Plan
 
-Implementation starts on its own branch (`v0.1`) after `egm-review`. Paths are relative to the
-repository root. No step leaves a design decision to the implementer. The one measured choice, which
-browser stand-in Mermaid.js uses in Node, comes with a fixed rule in step 0.
+Implementation happens on the branch `v0.1`. Paths are relative to the repository root.
 
-### Step 0: Spike to confirm packaging
+The plan has eight phases. Each phase leaves the repository buildable and tested, and ends at a gate
+made of commands from the [Verification Plan](#verification-plan). CI runs only the suites that exist
+at that point; each phase's `ci.yml` entry adds its own steps.
 
-Before anything else, check that `mermaid` 12.3.0 and the browser stand-in can be bundled by esbuild
-into one Node file that passes the Mermaid.js part of the regression corpus.
+Left to the implementer: the exact wording of hints and error messages (drafted in P1 and reviewed in
+the pull request), the icon artwork, and README prose. Everything else is specified below.
 
-*   **Candidates:** jsdom 31.0.0 (works in the 2026-11-11 test), then happy-dom and linkedom.
-*   **Rule:** choose the smallest bundle that passes every corpus case. If none passes, ship jsdom
-    unbundled as a runtime dependency of the npm package, and bundled into the VSIX's `node_modules`.
-*   **Record:** the result goes in `docs/designs/diagramist.md` under "Packaging notes".
+**Owed by the author:**
 
-### Target Files to Create/Modify
+*   a VS Code Marketplace publisher ID;
+*   an Open VSX namespace;
+*   an npm account that owns `diagramist` (reserve the name before P3);
+*   the release tokens `NPM_TOKEN`, `VSCE_PAT` and `OVSX_PAT`, as repository secrets.
 
-#### Repository and build
+### Phase P1: Skeleton, core, corpus and unit tests
 
-1.  `package.json` (Create). Private workspace root.
-    *   **Scripts:** `build`, `typecheck`, `lint:deps`, `test`, `test:mcp`, `test:extension`,
-        `test:webview`, `test:offline`, `package`, `release:check`.
-    *   **Runtime libraries, pinned exactly:** `mermaid@12.3.0`, `pele@1.13.0`, `jsdom@31.0.0` (or the
-        step 0 winner), `@modelcontextprotocol/server@2.4.0`.
-    *   **Development tools:** `typescript@7`, `esbuild@0.28`, `vitest@5`, `dependency-cruiser@18`,
-        `@vscode/test-electron@3`, `@vscode/vsce@4`, `ovsx@1`, `playwright-core@1.65`,
-        `@modelcontextprotocol/client@2.4.0`, `@types/node@20`, `@types/vscode@1.90`.
-    *   **Why `@types/vscode` 1.90:** it keeps the code to APIs that VS Code 1.90 and the forks have.
-2.  `package-lock.json` (Create). Lockfile, committed.
-3.  `tsconfig.base.json` (Create). Shared settings: strict mode, target ES2022, `noEmit` (esbuild
-    compiles).
-4.  `tsconfig.core.json` (Create). Covers `src/core/**` with no DOM library and no Node types. The type
-    checker itself then stops core code from using browser or Node APIs.
-5.  `tsconfig.node.json` (Create). Covers `src/platform/node/**`, `src/platform/vscode/**`,
-    `src/features/*/server/**`, `src/features/*/host/**` and `src/extension.ts`, with Node and VS Code
+**Gate:** `npm run typecheck`, `npm run lint:deps` and `npm test` pass on the CI matrix, with at least
+90% line coverage in `src/core`. `node scripts/verify-corpus-in-browser.mjs` passes on Linux.
+
+1.  `package.json` (Create). The private repository root. It has no npm workspaces: both published
+    packages would be named `diagramist`, which workspaces can't hold.
+    *   **Scripts:**
+        *   `typecheck` runs `tsc -p` for the core, node, host, webview and test configs;
+        *   `lint:deps`;
+        *   `test` (`vitest run --coverage`);
+        *   `test:checker`, `test:extension` and `test:webview`;
+        *   `build`, `package` and `check-size`.
+    *   **Pinned dependencies:** `mermaid@12.3.0`, `pele@1.13.0`, `markdown-it@15.0.3`, `jsdom@31.0.0`,
+        `@modelcontextprotocol/server@2.4.0` and `zod@4.6.7`.
+    *   **Pinned development dependencies:**
+        *   `typescript@7.0.2`, `esbuild@0.28.2`, `vitest@5.1.0`, `@vitest/coverage-v8@5.1.0`;
+        *   `dependency-cruiser@18.7.2`, `@types/vscode@1.90.0`, `@types/markdown-it@14.2.0`,
+            `@types/node@20` (locked by the lockfile);
+        *   `@vscode/test-electron@3.1.0`, `mocha@12.0.3`, `@types/mocha@10.0.10`,
+            `@playwright/test@1.65.0`;
+        *   `@modelcontextprotocol/client@2.4.0`, `@vscode/vsce@4.1.0`, `ovsx@1.4.0`.
+
+        All versions were checked with `npm view` on 2026-11-11 and 2026-11-13.
+2.  `package-lock.json` (Create). Committed.
+3.  `tsconfig.base.json` (Create). Strict mode, ES2022, `moduleResolution: bundler`, `noEmit` and
+    `skipLibCheck`.
+4.  `tsconfig.core.json` (Create). Covers `src/core/**`, with `lib: ["ES2022"]` and `types: []`.
+5.  `tsconfig.node.json` (Create). Covers `src/platform/node/**`, `src/features/checker/**`, and
+    `src/entries/{cli,pele-worker,mermaid-worker}.ts`, with `types: ["node"]`. It has no VS Code
+    types, so a `vscode` import in checker code fails type checking.
+6.  `tsconfig.host.json` (Create). Covers `src/platform/vscode/**`, `src/features/diagnostics/**`,
+    `src/features/agent-setup/**`, `src/features/preview/host/**` and `src/entries/extension.ts`, with
+    `types: ["node", "vscode"]`.
+7.  `tsconfig.webview.json` (Create). Covers `src/draw/**`, `src/features/preview/webview/**`,
+    `src/entries/webview.ts` and `src/platform/messages.ts`, with `lib: ["ES2022", "DOM"]`.
+8.  `tsconfig.test.json` (Create). Covers `test/**` and `scripts/**`, with Node, Mocha and VS Code
     types.
-6.  `tsconfig.webview.json` (Create). Covers `src/platform/browser/**` and `src/features/*/webview/**`,
-    with the DOM library and no Node types.
-7.  `scripts/build.mjs` (Create). esbuild builds:
-    *   `packages/vscode/dist/extension.js` (CommonJS, `vscode` external);
-    *   `packages/vscode/dist/webview.js` (browser IIFE, includes Pele and Mermaid.js);
-    *   `packages/*/dist/pele-worker.js` and `packages/*/dist/mermaid-worker.js` (Node);
-    *   `packages/diagramist/dist/cli.js` (Node, with a shebang).
+9.  `.dependency-cruiser.cjs` (Create). The import rules in Technical Plan section 8, one rule each.
+10. `vitest.config.ts` (Create). Three projects:
+    *   `core`, a Node environment for `test/core/**`;
+    *   `mermaid`, a jsdom environment for `test/core/mermaid-check.test.ts`;
+    *   `node`, for `test/node/**` and `test/checker/**`.
 
-    It injects the version numbers, copies `skills/` and `LICENSE` into both packages, and fails if
-    any two bundles embed different `mermaid` or `pele` versions.
-8.  `scripts/sync-version.mjs` (Create). Sets one version in the root, both package manifests and the
-    `SKILL.md` frontmatter.
-9.  `scripts/third-party-notices.mjs` (Create). Collects the licences of every bundled package into
-    `THIRD_PARTY_NOTICES.md` in both packages.
-10. `.dependency-cruiser.cjs` (Create). The import rules from Technical Plan section 7, plus "only
-    `src/core/renderers/pele/**` imports `pele`" and "only `src/core/renderers/mermaid/**` imports
-    `mermaid`".
-11. `vitest.config.ts` (Create). Unit test configuration. The coverage threshold is 90% of lines in
-    `src/core`.
-12. `.gitignore` (Modify). Add `packages/*/dist/`, `coverage/`, `.vscode-test/` and `*.vsix`.
-13. `.github/workflows/ci.yml` (Create). On every pull request, on Ubuntu, macOS and Windows:
-    install, build, typecheck, `lint:deps` and the tests. The extension tests run under `xvfb` on
-    Linux. The offline test runs on Linux inside `unshare -rn`, which has no network. No secrets.
-14. `.github/workflows/release.yml` (Create). On a `v*` tag:
-    *   build and run all tests;
-    *   `npm publish packages/diagramist` (with provenance);
-    *   `vsce publish` and `ovsx publish` for `packages/vscode`.
+    It sets `setupFiles: ["test/helpers/network-guard.ts"]` and the coverage threshold.
+11. `.github/workflows/ci.yml` (Create). Runs on pull requests, with no secrets. The matrix is
+    `ubuntu-latest` (Node 20 and 22), and `macos-latest` and `windows-latest` (Node 22). Steps:
+    `npm ci`, `typecheck`, `lint:deps`, `test`, and on Linux `verify-corpus-in-browser`.
+12. `.gitignore` (Modify). Add `coverage/`. The existing `dist/`, `.vscode-test/` and `*.vsix`
+    entries already cover the build outputs.
+13. `src/core/compat/keywords.ts` (Create). Every diagram keyword from Pele's compatibility page and
+    Mermaid 12.3.0's documentation, as `{ keyword, beta, external }`. Only `zenuml` is `external`.
+14. `src/core/compat/notices.ts` (Create). The `beta-type` and `newer-type` notices (D4).
+15. `src/core/blocks/find-blocks.ts` (Create).
+    *   **API:** `fileKind(path)` returns `"markdown"`, `"mermaid"` or `null`. `findBlocks(text, kind)`
+        returns `Block[]`, where a `Block` has `index`, `firstLine`, `lastLine`, `lines`,
+        `prefixWidths` and `info`.
+    *   **Normalising:** a byte-order mark is removed, and CRLF becomes LF before parsing.
+    *   **Finding fences:** markdown-it's `fence` tokens give `map` and `info`. A fence counts when the
+        first word of its info string is `mermaid`, in any case.
+    *   **Prefix widths:** for each diagram line, `prefixWidth` is the original line's length minus
+        the content line's length, when the content line is a suffix of the original. Otherwise (tabs
+        expanded inside a container), it is the column of the original line's first non-space
+        character, minus 1.
+16. `src/core/positions/map-position.ts` (Create). `toFilePosition(block, { line, column })` gives
+    `line = firstLine + line - 1` and `column = column + prefixWidths[line - 1]`, and keeps
+    `diagramLine` and `diagramColumn`.
+17. `src/core/renderers/types.ts` (Create). `RawVerdict` holds `outcome`, `code`, `message`,
+    `position: { line, column } | null` and `type`.
+18. `src/core/renderers/pele/check.ts` (Create). `checkWithPele(text): Promise<RawVerdict>`.
+    *   It calls `render(text, policy.pele)` and maps `PeleError` as in Technical Plan section 4.
+    *   Line 0 means no position.
+    *   Any other exception becomes `tool` / `internal`.
+19. `src/core/renderers/mermaid/check.ts` (Create). `checkWithMermaid(text): Promise<RawVerdict>`.
+    *   It runs the length pre-check first.
+    *   It calls `mermaid.initialize({ startOnLoad: false, securityLevel: "strict" })` once, then
+        `await mermaid.parse(text)`.
+    *   It maps errors as in section 4.
+20. `src/core/renderers/mermaid/token-names.ts` (Create). Readable names for every jison token that
+    appears in the corpus, starting with `SQE`, `PE`, `DIAMOND_STOP`, `NEWLINE`, `SPACE`, `EOF` and
+    `$end`.
+21. `src/core/result/schema.ts` (Create). TypeScript types for section 4, plus a JSON Schema used by
+    the tests to validate `--json` output.
+22. `src/core/result/build-result.ts` (Create). `buildBlockResult` and `buildCheckResult`. They set
+    severity, class, `retry`, hints and snippets; a snippet is the previous line plus the reported
+    line, cut to 200 characters.
+23. `src/core/result/format-text.ts` (Create). The text grammar in section 4, with a cap of 4,000
+    characters per file.
+24. `src/core/policy/policy.ts` (Create). The policy constants from section 2 and the limits table.
+25. `src/core/hints/hints.ts` (Create).
+    *   Hints keyed by renderer, class and code.
+    *   "Did you mean": a Levenshtein distance of 2 or less to a keyword in `compat`.
+    *   The line-late hint: when the previous line opens more `[`, `(`, `{` or `"` than it closes.
+    *   The Pele-warning hint: "change this only if you export with Pele".
+26. `src/core/targets/targets.ts` (Create). Reads the comment on the first line, or the line after the
+    type line (D3), and returns `targets`, `targetsFrom` and any notice.
+27. `src/core/samples/samples.ts` (Create). One minimal valid diagram per keyword in `compat`, with
+    the expected outcome for each renderer.
+28. `src/core/index.ts` (Create). The core's public API.
+29. `test/fixtures/corpus/cases.json` (Create). One hand-written file holding every case with its
+    expected results; the minimum set is in the table after this list.
+30. `scripts/verify-corpus-in-browser.mjs` (Create). The independent check for Mermaid.js results.
+    *   It runs every case through `mermaid.parse` from `mermaid@12.3.0` in headless Chromium, using
+        Playwright.
+    *   It uses the Chromium at `DIAGRAMIST_CHROMIUM` when set (on bshome, `/snap/bin/chromium`), and
+        Playwright's managed Chromium otherwise.
+    *   It fails on any difference from `cases.json`.
+31. `test/helpers/network-guard.ts` (Create). Replaces `net.connect`, `tls.connect`, `dns.lookup`,
+    `http.request`, `https.request` and `fetch` with functions that record the attempt and throw. An
+    `afterAll` hook fails the run if anything was recorded.
+32. `test/core/find-blocks.test.ts` (Create).
+33. `test/core/map-position.test.ts` (Create).
+34. `test/core/pele-check.test.ts` (Create).
+35. `test/core/mermaid-check.test.ts` (Create).
+36. `test/core/targets.test.ts` (Create).
+37. `test/core/compat.test.ts` (Create). It checks that every non-external keyword's sample parses in
+    Mermaid.js 12.3.0, and that Pele's results match the samples' expectations.
+38. `test/core/build-result.test.ts` (Create).
+39. `test/core/format-text.test.ts` (Create). Golden text for an error, a warning, an error without a
+    position, a notice, a passing file, `--verbose` passes, and the cap.
+40. `test/core/hints.test.ts` (Create).
 
-    Secrets: `NPM_TOKEN`, `VSCE_PAT`, `OVSX_PAT`. Odd minor versions publish as pre-releases.
+**Corpus cases and expected results** (the minimum set). Pele results marked † were observed on
+2026-11-11. Mermaid.js results come from the browser check in item 30.
 
-#### Packages (published artifacts)
+| Case | Input | Expected |
+| --- | --- | --- |
+| `md-fence-line-40` | Markdown, opening fence on line 39, `  A[Start --> B[End]` as diagram line 2 | Pele `syntax` at diagram 2:16 † → file 41:16 |
+| `emoji-columns` | `  A["😀😀 x"] --> B[End` as diagram line 2 | Pele `syntax` at 2:24 † (two emoji add 4 UTF-16 columns) |
+| `unclosed-bracket` | `flowchart LR` / `  A[one --> B` / `  C[two --> D` | Pele `syntax` 3:4 †; Mermaid.js `parse` 3:4 (`loc.last_column` 3 + 1); line-late hint |
+| `crlf` | `unclosed-bracket` with CRLF line endings | the same positions † |
+| `gantt-invalid-date` | a Gantt task dated `2026-13-45` | Pele `semantic`, no position, `anchorLine = firstLine` †; Mermaid.js as the browser check records |
+| `limit-50001` | a flowchart of 50,001 characters | Pele `limit`, no position, `too-large` †; Mermaid.js `limit`, `too-large` |
+| `zenuml` | `zenuml` / `  A->B: hi` | both `unsupported` (external) †, `retry: false` |
+| `typo` | `flowchar LR` / ` A-->B` | both `invalid`; hint "did you mean flowchart?" |
+| `sankey-abc` | `sankey-beta` / `A,B,abc` | Mermaid.js pass †; Pele `syntax` 2:5 † as a warning; `beta-type` notice |
+| `sankey-abc-both` | `sankey-abc` with `%% diagramist: targets=mermaid,pele` | the Pele `syntax` is an error |
+| `targets-none` | a broken diagram with `targets=none` | every problem is a warning; CLI exit 0 |
+| `bad-targets` | `%% diagramist: targets=pel` | `bad-targets-comment` notice; default targets |
+| `nested-fence` | a mermaid fence nested inside a longer outer code fence | `no-diagrams` |
+| `list-fence` | a broken diagram fenced inside a list item | positions include the list indentation |
+| `quote-fence` | a broken diagram fenced inside `> ` | positions include the `> ` prefix |
+| `tilde-fence` | `~~~mermaid` | found and checked |
+| `two-blocks` | two diagrams, the second broken | block 1 passes; block 2 fails |
+| `fenced-text-input` | text input wrapped in mermaid fence lines | fences removed; `fences-stripped` notice; positions relative to the diagram |
+| `langium-error` | `pie` / `  "a": x` | Mermaid.js `parse`; position as recorded in P1, or null |
+| `newer-type` | a type Mermaid.js 12.3.0 parses and Pele 1.13.0 lacks, if one exists | Mermaid.js pass; Pele `unsupported` warning; `newer-type` notice (omitted, with a note, if no such type exists) |
 
-15. `packages/diagramist/package.json` (Create). The npm package:
-    *   `name: diagramist`, `bin: { diagramist: dist/cli.js }`;
-    *   `files`: `dist`, `skills`, `LICENSE`, `THIRD_PARTY_NOTICES.md`;
-    *   `engines.node >=20`, `license: MIT`;
-    *   no runtime dependencies, except jsdom if step 0 requires it.
-16. `packages/diagramist/README.md` (Create). Install (`npm install -g diagramist`), `diagramist mcp`,
-    `diagramist check`, the link to the agent setup guide, and the statement that it is unofficial.
-17. `packages/vscode/package.json` (Create). The VS Code manifest:
-    *   **Identity:** `name: diagramist`. `displayName: "Diagramist: Mermaid & Pele diagrams for AI
-        agents"`. `publisher`: the author's Marketplace publisher ID, to be created by the author.
-    *   **Compatibility:** `engines.vscode: ^1.90.0`, `extensionKind: ["workspace"]`.
-    *   **Activation:** on `onLanguage:markdown` and `onLanguage:mermaid`, on its commands, and on
-        `onWebviewPanel:diagramist.preview`.
-    *   **Commands:** `diagramist.openPreviewToSide`, `diagramist.exportDiagram`,
-        `diagramist.connectAgent`, `diagramist.checkAgentSetup`, `diagramist.disconnectAgent`,
-        `diagramist.copyDiagnosticReport`.
-    *   **Menus and keys:** an editor-title button for `.mmd`, `.mermaid` and Markdown files, and a
-        keybinding limited to those files.
-    *   **Language:** a `languages` entry for ID `mermaid` covering `.mmd` and `.mermaid`, with no
-        grammar.
-    *   **Settings:**
-        *   `diagramist.oldestMermaidVersion`;
-        *   `diagramist.preview.defaultRenderer` (`pele` or `mermaid`);
-        *   `diagramist.preview.autoDirection` (default `false`);
-        *   `diagramist.diagnostics.enabled`;
-        *   `diagramist.checkTimeoutMs` (default 2000);
-        *   at machine scope only: `diagramist.security.allowImages` (default `false`),
-            `diagramist.security.linkSchemes` and `diagramist.limits.*`.
-    *   **Restricted Mode:** `capabilities.untrustedWorkspaces` is `limited`, and the security
-        settings are restricted.
-18. `packages/vscode/README.md` (Create). The Marketplace page. Its first line names Mermaid. It covers
-    the preview, the Problems panel, export, connecting agents and the privacy statement, and says the
-    extension is unofficial and not affiliated with Obsidian, the Mermaid project or Microsoft.
-19. `packages/vscode/.vscodeignore` (Create). Ships only `dist/`, `skills/`, the README, `LICENSE`,
-    `THIRD_PARTY_NOTICES.md` and the icon.
-20. `packages/vscode/icon.png` (Create). A 128×128 icon.
+### Phase P2: Packaging test
 
-#### Agent guidance
+**Gate:** `docs/designs/packaging-notes.md` records:
 
-21. `skills/diagramist/SKILL.md` (Create). The shared skill from D8. Its frontmatter `name` is
-    `diagramist`; its description, body and length are as in D8. It lists the version it was written
-    for.
+*   the results;
+*   the chosen browser stand-in, which passes every Mermaid.js corpus case inside the bundled worker;
+*   the worker layout (one worker or two);
+*   the memory budget for risk R5.
 
-#### Core (`src/core`, runtime-neutral)
+41. `scripts/spike/bundle-mermaid-worker.mjs` (Create).
+    *   **Candidates:** it builds the Mermaid.js worker bundle with each candidate stand-in: jsdom
+        31.0.0, happy-dom 21.0.4 and linkedom 0.18.15, added as temporary development dependencies.
+    *   **Per candidate,** in a fresh Node process, it records:
+        *   pass or fail for each Mermaid.js corpus case;
+        *   resident memory after the run (`process.memoryUsage().rss`);
+        *   the minified bundle size in bytes.
+    *   **Single-worker test:** it also tries Pele `render()` under jsdom globals, with an explicit
+        `measurer` (width = characters × font size × 0.6). If every Pele corpus case matches, one
+        worker can run both renderers.
+42. `docs/designs/packaging-notes.md` (Create). The results table and the decision. The rule is the
+    lowest resident memory among candidates that pass every case; a tie goes to the smaller bundle.
+43. `docs/designs/diagramist.md` (Modify). Update the section 1 diagram, R5 and the NFRs with the P2
+    results.
 
-22. `src/core/blocks/find-blocks.ts` (Create). API: `findBlocks(text, fileKind) -> Block[]` and
-    `fileKindFromPath(path)`.
-    *   `Block` holds `index`, `contentStartLine`, `endLine`, `indent`, `quotePrefix`, `fence`, and the
-        normalized `text`: LF line endings, no BOM, prefixes removed.
-    *   A `.mmd` or `.mermaid` file is one block.
-23. `src/core/positions/map-position.ts` (Create). API: `toFilePosition(block, pos) -> FilePosition
-    | null`.
-    *   It adds back the block's line offset, indent and quote prefix. Columns are UTF-16 code units,
-        1-based.
-    *   A `null` position anchors the error to `contentStartLine`, with `hasPosition: false`.
-    *   `FilePosition` carries both the file line and column, and the diagram-relative `diagramLine`
-        and `diagramColumn`.
-24. `src/core/renderers/types.ts` (Create). The `RendererAdapter` interface: `id`, `version`,
-    `detectType(text)` and `check(text, policy) -> RawVerdict`. `RawVerdict` holds `ok`, `code`,
-    `message`, `pos`, `spanStart`, `type` and `classHint`.
-25. `src/core/renderers/pele/pele-adapter.ts` (Create). The only importer of `pele`.
-    *   It calls `render(text, options)` with options from `policy`.
-    *   It maps `PeleError`: `syntax` and `semantic` become "invalid", `unsupported-diagram` becomes
-        "unsupported", and `limit` becomes "too-large". Any other exception becomes "tool". Line and
-        column 0 mean no position.
-    *   It uses only Pele's public API.
-26. `src/core/renderers/mermaid/mermaid-adapter.ts` (Create). The only importer of `mermaid`.
-    *   It runs `initialize({ startOnLoad: false, securityLevel: "strict" })`, then `parse(text)`.
-    *   The error position is `hash.loc.last_line` with column `last_column + 1`. `spanStart` is
-        `first_line`, `first_column + 1`.
-    *   "No diagram type detected" becomes "unsupported".
-    *   In the browser it also exposes `draw(id, text, theme)` through `mermaid.render`, with
-        `htmlLabels: false` for exports.
-27. `src/core/result/schema.ts` (Create). The types for result format version 1 (Technical Plan
-    section 3), plus a JSON Schema for the MCP output schema. Input schemas are flat: strings, numbers
-    and booleans, with no `oneOf`, `anyOf` or `$ref`.
-28. `src/core/result/build-result.ts` (Create). Combines blocks, targets, verdicts and warnings into a
-    `CheckResult`. It sets severity (error for targets, warning otherwise) and the summary.
-29. `src/core/result/format-text.ts` (Create). The text form: one header line, then for each problem
-    `path:line:col`, the severity, the renderer and code, the message, the previous and reported lines,
-    and the hint. It caps output at about 4,000 characters for failures, noting how many were left
-    out, and returns one line for a passing file.
-30. `src/core/policy/policy.ts` (Create). The fixed render and security options:
-    *   Pele: `images: false`, `autoDirection: false` and `responsive: false` for checks; the default
-        limits, which settings can only lower.
-    *   Mermaid.js: `securityLevel: "strict"`.
-    *   A fixed `now` for Gantt checks: 2000-01-01 UTC.
-31. `src/core/hints/hints.ts` (Create). One-line hints for each renderer code and class, plus
-    detection of:
-    *   pasted fence lines, which are stripped and reported;
-    *   types neither renderer supports (`zenuml`), reported as unsupported with `retry: false`;
-    *   the "reported one line late" pattern, where the previous line has an unclosed bracket or quote.
-32. `src/core/targets/targets.ts` (Create). Parses `%% diagramist: targets=…` (D3). It returns the
-    targets and their source ("default" or "comment on line N"), and a warning for unknown values.
-33. `src/core/compat/mermaid-types.json` (Create). Each diagram keyword with `introducedIn`, `beta`
-    and `pele`. It is built once from Mermaid's changelog and docs, as in D4.
-34. `src/core/compat/compat.ts` (Create). The warnings for types newer than `oldestMermaidVersion`,
-    and the beta-type warning when no version is set (D4).
-35. `src/core/theme/theme-map.ts` (Create). The map from `--vscode-*` to `--pele-*`, including the
-    high-contrast fallbacks, a Mermaid.js `themeVariables` builder, and the fixed light and dark export
-    themes.
-36. `src/core/samples/samples.ts` (Create). One minimal valid diagram per supported type, used by the
-    self-test and the regression corpus.
-37. `src/core/check/check-text.ts` (Create). API: `checkText(text, fileKind, options, renderers) ->
-    CheckResult`. It is pure, with the renderers injected, and works with one renderer or both,
-    depending on targets.
-38. `src/core/version.ts` (Create). Exposes the Diagramist, Mermaid.js and Pele versions injected at
-    build time.
-39. `src/core/index.ts` (Create). The public API of the core.
+**If no candidate passes once bundled,** jsdom ships unbundled:
 
-#### Platform
+*   `external: ["jsdom"]` in the Mermaid.js worker's esbuild entry;
+*   `"dependencies": { "jsdom": "31.0.0" }` in `packages/diagramist/package.json`;
+*   for the VSIX, `vsce package` without `--no-dependencies`, with the jsdom packages kept in
+    `.vscodeignore`.
 
-40. `src/platform/node/worker-pool.ts` (Create). Two workers: Pele, started at the first check, and
-    Mermaid.js, started at the first check whose targets include Mermaid.js.
-    *   Each request has a timeout (`checkTimeoutMs`). On timeout the worker is terminated and
-        restarted, and the result is class "tool", code "timeout".
-    *   The queue holds at most 8 requests, and a newer request for the same file drops the older one.
-41. `src/platform/node/pele-worker-entry.ts` (Create). The Pele worker: no browser globals; it runs
-    the Pele adapter.
-42. `src/platform/node/mermaid-worker-entry.ts` (Create). The Mermaid.js worker: it loads the step 0
-    browser stand-in, installs only the globals Mermaid.js needs, and runs the Mermaid.js adapter.
-43. `src/platform/node/read-file.ts` (Create). Resolves an absolute, normalized path and reads it,
-    refusing files over 1 MB and non-text files.
-44. `src/platform/node/logger.ts` (Create). Logs to stderr with levels. It never writes to stdout,
-    which MCP owns.
-45. `src/platform/vscode/log.ts` (Create). The `LogOutputChannel` named "Diagramist", which follows
-    VS Code's log level and logs diagram text only at trace.
-46. `src/platform/vscode/settings.ts` (Create). Typed setting access. It ignores workspace values for
-    machine-scope security settings.
-47. `src/platform/vscode/trust.ts` (Create). Workspace Trust checks for features that are off in
-    Restricted Mode.
-48. `src/platform/browser/messaging.ts` (Create). Versioned message types between the host and the
-    webview: `render`, `status`, `export-request` and `export-bytes`.
+The 15 MB size gate still applies.
 
-#### Features
+### Phase P3: Checker, CLI, MCP server, skill and agent evaluation
 
-49. `src/features/checker/server/mcp-server.ts` (Create). Builds the MCP server with
-    `@modelcontextprotocol/server`.
-    *   It offers one tool, `check`, with inputs `path`, `text`, `block` and `oldestMermaid` (all
-        optional, at least one of `path` and `text`).
-    *   It returns structured content against the version 1 output schema, plus the text form.
-    *   Annotations: `readOnlyHint`, `idempotentHint`, and `openWorldHint: false`.
-    *   It uses the stdio transport, and exits when stdin closes or the parent process exits.
-50. `src/features/checker/server/tool-description.ts` (Create). The `check` description, at most
-    about 80 words. A test enforces the limit.
-51. `src/features/cli/server/cli.ts` (Create). Uses `node:util` `parseArgs`.
-    *   **Subcommands:** `mcp`, `check <paths…>` (with `--json`, `--oldest-mermaid` and `--verbose`),
-        `--self-test`, `--version` and `--help`.
-    *   **Exit codes:** 0, 1 and 2, as in D7.
-    *   **Folder scans:** `.mmd`, `.mermaid` and `.md` files, skipping `node_modules` and hidden folders.
-52. `src/features/cli/server/self-test.ts` (Create). Checks every sample with both renderers, and
-    prints and returns the failures.
-53. `src/features/diagnostics/host/diagnostics.ts` (Create). A `DiagnosticCollection` named
-    "diagramist".
-    *   **When it checks:** on open, on change (after 400 ms), on save, and when the file watcher sees a
-        change on disk. Open documents only, files up to 1 MB.
-    *   **What it shows:** source "Diagramist (Mermaid.js)" or "Diagramist (Pele)", with the renderer
-        code as the diagnostic code. Warnings appear as Warning severity.
-    *   It clears the entries when a file closes or the problem is fixed.
-54. `src/features/preview/host/preview-panel.ts` (Create). One panel, `diagramist.preview`.
-    *   It follows the active editor, with a lock, and has a `WebviewPanelSerializer` that restores
-        `{ uri, block, v: 1 }`.
-    *   It sends block texts, the renderer, the theme and the policy to the webview, and updates the
-        status bar when an agent changes a file that isn't shown.
-55. `src/features/preview/host/html.ts` (Create). The webview HTML. The CSP is `default-src 'none'`,
-    with scripts and styles from the extension's own resources plus a nonce, and `img-src` limited to
-    the extension and `data:`. Command links are off.
-56. `src/features/preview/webview/main.ts` (Create).
-    *   **Drawing:** each block with Pele `mount` (`autoDirection` off, `images` off) or with Mermaid.js
-        `draw`, waiting for typing to pause.
-    *   **Errors:** shown as text, with the last good drawing dimmed underneath. Errors are announced
-        through an `aria-live` region.
-    *   **Controls:** the renderer switch, the status line and scrolling to the block at the cursor.
-    *   **Keyboard and links:** diagrams can be reached with Tab. Link clicks go to the host, which asks
-        before opening.
-    *   **Notices:** the layout badge (when `autoDirection` is on and Pele changes the layout) and the
-        "unsaved changes: agents check the saved file" note in the status line.
-57. `src/features/preview/webview/styles.css` (Create). The layout, the `--pele-*` variables set from
-    the `--vscode-*` variables (from the theme map), high-contrast borders and the error colour.
-58. `src/features/export/host/export-command.ts` (Create). "Diagramist: Export Diagram…".
-    *   It asks, through quick picks, for the block, renderer, format, theme and PNG scale (D5).
-    *   It suggests a file name in VS Code's save dialog.
-    *   It asks the webview for the bytes and writes them with `workspace.fs`.
-59. `src/features/export/webview/export.ts` (Create).
-    *   **SVG:** the colours and fonts read from the drawn diagram are written into the SVG, with no
-        `var(--pele-…)` left.
-    *   **PNG:** the SVG is drawn onto a canvas at the chosen scale; Mermaid.js drawings use
-        `htmlLabels: false`.
-    *   The bytes are sent back to the host.
-60. `src/features/agent-setup/host/agents.ts` (Create). Data for the three agents:
-    *   **Add commands:**
-        *   `claude mcp add --scope user diagramist -- diagramist mcp`
-        *   `gemini mcp add --scope user diagramist diagramist mcp`
-        *   `codex mcp add diagramist -- diagramist mcp`
-    *   **Remove commands:** the matching `mcp remove` command for each agent.
-    *   **Config files, read only when checking setup:** `~/.claude.json`, `~/.gemini/settings.json` and
-        `~/.codex/config.toml`.
-    *   **Skill folders:** `~/.claude/skills/diagramist/` for Claude Code, and `~/.agents/skills/diagramist/`
-        for Codex (official) and Gemini CLI (its documented alias for the shared folder).
-61. `src/features/agent-setup/host/connect.ts` (Create). "Diagramist: Connect AI agent".
-    *   **Install:** if `diagramist` is not on the PATH, it offers to run `npm install -g
-        diagramist@<extension version>` in a visible terminal.
-    *   **Register:** it shows the agent's add command, with `--oldest-mermaid` when that setting is
-        set, and runs it in a visible terminal after the user agrees. Otherwise it copies the command.
-    *   **Skill:** it copies `SKILL.md` into the agent's skill folder after the user agrees.
-62. `src/features/agent-setup/host/check-setup.ts` (Create). "Diagramist: Check agent setup". For each
-    agent it reports:
-    *   whether the CLI is installed;
-    *   whether `diagramist` is registered, read from the agent's config file without editing it;
-    *   whether the checker's version matches the extension's (`diagramist --version`);
-    *   whether the skill copy is present and its version.
-63. `src/features/agent-setup/host/disconnect.ts` (Create). "Diagramist: Disconnect agent". It runs the
-    agent's remove command, and deletes the copied skill folder, after the user agrees.
-64. `src/features/diagnostic-report/host/report.ts` (Create). "Diagramist: Copy diagnostic report".
-    *   It covers versions, VS Code version and kind, OS, settings, agent setup status and the
-        session's counts (D6).
-    *   Paths and diagram text are left out unless the user ticks to include them.
-    *   Counts live in memory only.
-65. `src/extension.ts` (Create). `activate` calls each feature's `register` in this order:
-    diagnostics, preview, export, agent setup, diagnostic report. It also runs the self-test once per
-    version, logging the results. `deactivate` disposes the workers.
+**Gate:**
 
-#### Tests
+*   `npm run build` passes, and `npm test` and `npm run test:checker` pass on the CI matrix.
+*   The agent evaluation results are committed, and the D7 outcome is recorded in this document.
 
-66. `test/fixtures/corpus/` (Create). The regression corpus:
-    *   one sample per type;
-    *   Pele's and Mermaid's documentation examples, with their licences noted;
-    *   edge cases: fences at line 40, inside list items and inside quotes; `~~~` fences; CRLF; BOM;
-        tabs; emoji before an error; several blocks in one file; frontmatter; the Sankey `abc` value;
-        ZenUML; pasted fence lines; a Gantt chart with an invalid date; 50,001 characters.
+44. `scripts/build.mjs` (Create). esbuild builds:
+    *   `src/entries/cli.ts` → `packages/diagramist/dist/cli.mjs` (ESM, Node 20, with a shebang);
+    *   `src/entries/pele-worker.ts` → `packages/diagramist/dist/pele-worker.mjs`;
+    *   `src/entries/mermaid-worker.ts` → `packages/diagramist/dist/mermaid-worker.mjs`.
 
-    It includes the expected verdicts, codes and positions for both renderers.
-67. `test/fixtures/agent-eval/` (Create). The 30 or more diagrams with planted errors for the hand-run
-    agent check (Goal 3), with a results template.
-68. `test/core/*.test.ts` (Create). Unit tests for `find-blocks`, `map-position`, both adapters,
-    `targets`, `compat`, `build-result`, `format-text` (including the size cap) and `hints`, driven by
-    the corpus.
-69. `test/checker/mcp-contract.test.ts` (Create). Starts `dist/cli.js mcp` and connects with
-    `@modelcontextprotocol/client` over stdio. It checks:
+    It also:
+    *   injects `__DIAGRAMIST_VERSION__`, `__MERMAID_VERSION__` and `__PELE_VERSION__`;
+    *   copies `skills/` and `LICENSE`, and writes the version into the copied skill's
+        `metadata.diagramistVersion`;
+    *   runs item 45;
+    *   fails if any two bundles report different renderer versions.
+45. `scripts/third-party-notices.mjs` (Create). Writes the licences of every bundled package, taken
+    from esbuild's metafile, to `THIRD_PARTY_NOTICES.md` in each package folder.
+46. `src/platform/node/worker-messages.ts` (Create). The messages in Technical Plan section 3.
+47. `src/platform/node/worker-pool.ts` (Create).
+    *   The start-up budget, the per-block limit and restarts.
+    *   A `fifo` mode for the CLI and MCP server, and a `latest-wins` mode with 8 slots for
+        diagnostics.
+    *   A test hook: when `DIAGRAMIST_TEST_HOOKS=1`, workers sleep for `DIAGRAMIST_TEST_SLOW_MS`
+        before each check.
+48. `src/platform/node/coordinator.ts` (Create). Technical Plan section 3.
+49. `src/platform/node/read-file.ts` (Create). The file rules in Technical Plan section 6. Validates
+    UTF-8 with `TextDecoder("utf-8", { fatal: true })`.
+50. `src/platform/node/dom-standin.ts` (Create). Installs the stand-in's `window`, `document`,
+    `navigator`, `Element`, `HTMLElement`, `SVGElement`, `DOMParser` and `Node` as globals. The
+    Mermaid.js worker then imports `mermaid` dynamically, after these exist.
+51. `src/platform/node/logger.ts` (Create). Writes to stderr, at the level set by `DIAGRAMIST_LOG`.
+52. `src/entries/pele-worker.ts` (Create).
+53. `src/entries/mermaid-worker.ts` (Create).
+54. `src/entries/cli.ts` (Create). Calls `runCli(process.argv)`.
+55. `src/features/checker/cli.ts` (Create). Uses `node:util` `parseArgs` in strict mode, with the
+    commands, flags, folder scanning and exit codes from Technical Plan section 5.
+56. `src/features/checker/mcp-server.ts` (Create). Uses `@modelcontextprotocol/server` 2.4.0. It
+    registers `check` with a zod input schema, `{ path?: string; text?: string }`, and returns the
+    text form as text content. It exits when stdin closes. P3 confirms the package's exported class
+    names before writing this file.
+57. `src/features/checker/tool-description.ts` (Create). The description from section 5, at most 80
+    words.
+58. `src/features/checker/self-test.ts` (Create).
+59. `src/features/checker/index.ts` (Create). Exports `runCli`.
+60. `packages/diagramist/package.json` (Create).
+    *   `name: diagramist`, `type: module`, `bin: { "diagramist": "dist/cli.mjs" }`.
+    *   `files`: `dist`, `skills`, `LICENSE`, `THIRD_PARTY_NOTICES.md` and `README.md`.
+    *   `engines.node: ">=20"` and `license: MIT`.
+    *   No `dependencies`, unless P2 used its fallback.
+61. `packages/diagramist/README.md` (Create). Install, commands, privacy, a link to
+    `docs/agents.md`, and the sentence "Unofficial. Not affiliated with Obsidian, the Mermaid project
+    or Microsoft."
+62. `skills/diagramist/SKILL.md` (Create). D8 and Technical Plan section 5.
+63. `docs/agents.md` (Create). A first version, completed in P7. For each agent it covers:
+    *   install;
+    *   registration, if the MCP server ships;
+    *   the skill folder;
+    *   pre-approval (U2);
+    *   troubleshooting: Windows `cmd /c`, Node version managers and EACCES.
+
+    It ends with the support tiers:
+    *   supported: the three agents in a terminal on Linux;
+    *   best effort: macOS, Windows, the agents' own VS Code panels, Remote-SSH and WSL;
+    *   unsupported: VS Code for the Web.
+64. `test/node/worker-pool.test.ts` (Create). Covers:
+    *   the start-up budget, with a worker that never reports ready;
+    *   the per-block timeout, using the slow hook;
+    *   a restart after a crash;
+    *   that `fifo` mode never drops a request;
+    *   that `latest-wins` marks the older request `superseded`.
+65. `test/node/read-file.test.ts` (Create). Covers:
+    *   each allowed extension, in either case;
+    *   a symlink, resolved to its real path;
+    *   a directory, which gives `not-a-file`;
+    *   a FIFO on Linux and macOS, which gives `not-a-file`;
+    *   a file over 1 MB, which gives `too-large`;
+    *   invalid UTF-8, which gives `not-text`;
+    *   removal of the byte-order mark.
+66. `test/node/coordinator.test.ts` (Create). Runs every corpus case through the coordinator, with
+    both workers, and compares the results with `cases.json`.
+67. `test/checker/cli.test.ts` (Create). Covers:
+    *   exit codes 0, 1 and 2, and which one wins;
+    *   the text grammar;
+    *   `--json` output against the schema;
+    *   folder scanning;
+    *   `--self-test` and `--version`.
+68. `test/checker/mcp-contract.test.ts` (Create). Starts `node packages/diagramist/dist/cli.mjs mcp`
+    and connects with `@modelcontextprotocol/client` over stdio. It checks:
     *   the handshake;
-    *   `tools/list`: the name, the annotations, flat input schemas and the description limit;
-    *   `tools/call` on the corpus, for both text and structured results;
-    *   a timeout with a 50 ms limit;
+    *   `tools/list`: one tool `check`, its annotations, inputs `path` and `text` only, and a
+        description of at most 80 words;
+    *   `tools/call` on corpus files, with text identical to the CLI's;
+    *   `isError` when both or neither input is given;
+    *   a `timeout` result when the slow hook is on;
     *   that stdout carries only protocol messages.
-70. `test/cli/cli.test.ts` (Create). Exit codes, line format, `--json` lines, folder scanning and
-    `--self-test`.
-71. `test/extension/runTest.ts` and `test/extension/suite/*.test.ts` (Create). With
-    `@vscode/test-electron`, they check:
-    *   activation;
-    *   diagnostics for a broken fence, and clearing them after the fix;
-    *   that the preview opens and follows the editor;
-    *   that the commands are registered;
-    *   Restricted Mode behaviour;
-    *   that machine-scope settings ignore workspace values.
-72. `test/webview/render.spec.ts` (Create). With Playwright and a local Chromium, against the webview
-    bundle, it checks:
-    *   both renderers draw the samples;
-    *   a remote image makes no request and shows a placeholder;
-    *   PNG export has the expected pixel size at 2×;
-    *   exported SVG contains no `var(--pele`.
-73. `test/offline/offline.test.ts` (Create). Runs `diagramist check` on the corpus inside a network
-    namespace with no network (Linux only), and expects the same results.
+69. `test/checker/offline.test.ts` (Create). On Linux, when `unshare -rn true` succeeds, it runs the CLI
+    on the corpus with no network and compares the output with a normal run. Otherwise it is skipped,
+    with the reason logged; the network guard still applies everywhere.
+70. `test/fixtures/agent-eval/diagrams.json` (Create). 30 diagrams with planted errors: 10 flowchart, 5
+    sequence, 5 class, state or ER, 5 Gantt, timeline or mindmap, and 5 beta or newer types. Each one
+    records its intended fix.
+71. `test/fixtures/agent-eval/PROCEDURE.md` (Create). How to run the evaluation.
+    *   **Setup:** each agent (Claude Code, Gemini CLI, Codex) runs on Linux, in a fresh session, with
+        one prompt template.
+    *   **Runs:** run 1 uses the CLI plus SKILL.md; run 2 uses the MCP server.
+    *   **Records:**
+        *   checks until a pass, and how often the agent stopped after three failures;
+        *   the tokens each result cost, as the agent reports them (U1);
+        *   permission prompts (U2);
+        *   the agent version and the model.
+72. `test/fixtures/agent-eval/results-v0.1.md` (Create, when the evaluation runs). The results, with
+    D7's rule applied.
+73. `.github/workflows/ci.yml` (Modify). Add `build` and `test:checker`.
 
-#### Documentation
+### Phase P4: Extension shell and diagnostics
 
-74. `README.md` (Modify). Replaces the design-phase text with:
-    *   what Diagramist is, and its privacy statement;
-    *   install steps for the extension and the npm package;
-    *   connecting agents;
-    *   the CLI;
-    *   the `targets` comment and `oldestMermaidVersion`;
-    *   export;
-    *   troubleshooting;
-    *   that it is unofficial.
-75. `docs/agents.md` (Create). Setup, pre-approving the read-only `check` tool, skill folders and
-    troubleshooting, for each agent: Claude Code, Gemini CLI and Codex. It also covers:
-    *   **The off switch:** "Disconnect agent".
-    *   **A support tier table:**
-        *   supported: the three agents in a terminal on Linux, macOS and Windows;
-        *   best effort: their VS Code panels, Remote-SSH and WSL;
-        *   unsupported: VS Code for the Web.
-76. `docs/ci.md` (Create). A pre-commit hook and a GitHub Actions example using `diagramist check`.
-77. `CONTRIBUTING.md` (Create). The folder map, import rules, test commands, the renderer upgrade
-    procedure (regression corpus, "Validator changes" in the changelog) and the release steps.
-78. `SECURITY.md` (Create). How to report problems privately. It says Pele issues go to
-    obsidianmd/pele and Mermaid.js issues to mermaid-js/mermaid.
-79. `CHANGELOG.md` (Create). One section per version, including a "Validator changes" heading
-    whenever a renderer upgrade changes any verdict.
-80. `.github/ISSUE_TEMPLATE/bug_report.md` (Create). It asks for the diagnostic report, and sends
-    renderer differences upstream.
-81. `docs/designs/diagramist.md` (Create at finalization). The final copy of this design.
+**Gate:** `npm run test:extension` passes on Linux under `xvfb-run`, and on macOS and Windows.
+
+74. `packages/vscode/package.json` (Create). The VS Code manifest.
+    *   **Identity:** `name: diagramist`, `displayName: "Diagramist: Mermaid & Pele diagrams for AI
+        agents"`, and the owner's `publisher` ID.
+    *   **Runtime:** `engines.vscode: "^1.90.0"`, `main: "./dist/extension.cjs"`,
+        `extensionKind: ["workspace"]`.
+    *   **Listing:** `categories: ["Visualization", "Linters"]`, and keywords `mermaid`, `pele`,
+        `diagram`, `mcp`, `claude code`, `gemini cli` and `codex`.
+    *   **Activation:** `onLanguage:markdown`, `onLanguage:mermaid` and
+        `onWebviewPanel:diagramist.preview`.
+    *   **Commands,** all in the category "Diagramist":
+        *   Open Preview to the Side;
+        *   Toggle Preview Lock;
+        *   Export Diagram…;
+        *   Connect AI Agent;
+        *   Check Agent Setup;
+        *   Disconnect AI Agent;
+        *   Copy Diagnostic Report.
+    *   **Menus:** the editor-title button for `.md`, `.markdown`, `.mmd` and `.mermaid` files.
+    *   **Languages:** `{ id: "mermaid", extensions: [".mmd", ".mermaid"], aliases: ["Mermaid"] }`.
+    *   **Configuration:**
+        *   `diagramist.preview.defaultRenderer`: a string enum of `mermaid` and `pele`, default
+            `mermaid`;
+        *   `diagramist.diagnostics.enabled`: boolean, default `true`.
+    *   **Restricted Mode:** `capabilities.untrustedWorkspaces` is `{ supported: "limited" }`, with a
+        description saying agent setup is off.
+75. `packages/vscode/README.md` (Create). The Marketplace page. Its first line names Mermaid, and it
+    carries the sentence "Unofficial. Not affiliated with Obsidian, the Mermaid project or Microsoft."
+76. `packages/vscode/.vscodeignore` (Create). Ships only `dist/**`, `skills/**`, `README.md`,
+    `LICENSE`, `THIRD_PARTY_NOTICES.md` and `icon.png`.
+77. `packages/vscode/icon.png` (Create). A 128×128 icon.
+78. `src/platform/vscode/log.ts` (Create). The `LogOutputChannel` named "Diagramist". Its first line
+    gives the versions.
+79. `src/platform/vscode/settings.ts` (Create). Typed access to the two settings.
+80. `src/platform/vscode/trust.ts` (Create). `isTrusted()` and the trust-change event, wrapped so
+    tests can replace them.
+81. `src/platform/vscode/counts.ts` (Create). The in-memory counts from D6.
+82. `src/features/diagnostics/diagnostics.ts` (Create).
+    *   **Scope:** the checker's results for saved files. A check runs on open, on save, and when a
+        document reloads from disk without unsaved changes.
+    *   **Watching files on disk:** a `FileSystemWatcher` on `**/*.{md,markdown,mmd,mermaid}` covers
+        files that aren't open, excluding `**/node_modules/**`. It checks on create and change, and
+        clears on delete.
+    *   **What it shows:** the source is "Diagramist (Mermaid.js)" or "Diagramist (Pele)", and the code
+        is the renderer's code. The range is one character at the position, or the whole anchor line.
+        Notices appear at Information severity.
+    *   **Settings and limits:** it uses the coordinator in `latest-wins` mode, and clears everything
+        when `diagramist.diagnostics.enabled` is false.
+83. `src/features/diagnostics/index.ts` (Create). `register(context)`.
+84. `src/features/agent-setup/version-check.ts` (Create). The version check from D1.
+85. `src/features/agent-setup/index.ts` (Create). `register(context)`. P4 registers the version check,
+    and P7 adds the rest.
+86. `src/entries/extension.ts` (Create). `activate` sets up the log and settings, then registers
+    diagnostics, the preview (from P5) and agent setup. `deactivate` stops the worker pools.
+87. `scripts/build.mjs` (Modify). Add `src/entries/extension.ts` → `packages/vscode/dist/extension.cjs`,
+    and copy both worker bundles into `packages/vscode/dist/`.
+88. `test/extension/run-tests.mjs` (Create). Downloads stable VS Code through `@vscode/test-electron`,
+    caches it in `.vscode-test/`, and runs the Mocha suite against `test/extension/fixtures/workspace`.
+89. `test/extension/index.ts` (Create). The Mocha runner: TDD interface, 30-second timeout.
+90. `test/extension/suite/activation.test.ts` (Create). Activation; registered commands; trust gating
+    with a replaced `isTrusted()`.
+91. `test/extension/suite/diagnostics.test.ts` (Create). Covers:
+    *   **Basic behaviour:**
+        *   a saved broken fence produces a diagnostic at the expected position;
+        *   fixing and saving clears it;
+        *   unsaved edits change nothing;
+        *   a change written to disk outside the editor produces diagnostics.
+    *   **Goal 5's measure:** run `packages/diagramist/dist/cli.mjs check --json` on the fixture files
+        and compare its codes and positions with the diagnostics.
+92. `test/extension/suite/settings.test.ts` (Create). The two settings and their defaults.
+93. `test/extension/fixtures/workspace/README.md` (Create). Two diagrams, one of them broken.
+94. `test/extension/fixtures/workspace/flow.mmd` (Create).
+95. `.github/workflows/ci.yml` (Modify). Add `test:extension`.
+
+Restricted Mode can't be forced inside `@vscode/test-electron`. Item 90 covers its logic, and P8's
+release checklist covers the real behaviour.
+
+### Phase P5: Preview
+
+**Gate:** `npm run test:webview` passes on Linux, and `test/extension/suite/preview.test.ts` passes.
+
+96. `src/platform/messages.ts` (Create). The messages between host and webview. Both come from one
+    build, so the messages carry no version field.
+    *   **Host to webview:**
+        *   `render { documentUri, blocks: [{ index, firstLine, text }], renderer, themeKind, unsaved }`;
+        *   `scroll-to-block { index }`;
+        *   `export-request { requestId, blockIndex, renderer, format, theme, scale }`.
+    *   **Webview to host:**
+        *   `ready {}`;
+        *   `status { documentUri, blockIndex, state, errorText? }`;
+        *   `link-click { href }`;
+        *   `renderer-switch { renderer }`;
+        *   `lock { locked }`;
+        *   `export-bytes { requestId, format, base64 }`;
+        *   `export-error { requestId, message }`.
+97. `src/draw/theme-map.ts` (Create). The table below. The build turns it into `dist/webview.css`.
+98. `src/draw/pele-draw.ts` (Create). `mount(element, text, options)` with the policy's options and
+    the font stack `-apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif`. It
+    reports errors from Pele's `onError` as `status` messages.
+99. `src/draw/mermaid-draw.ts` (Create). Calls `mermaid.initialize` with:
+    *   `startOnLoad: false`, `securityLevel: "strict"`;
+    *   `theme: "default"` for light VS Code themes, and `"dark"` for dark and high-contrast themes;
+    *   the same font stack.
+
+    Then `mermaid.render(id, text)`. The preview keeps Mermaid's default HTML labels, so it looks like
+    GitHub. Exports use `htmlLabels: false`, so long labels may wrap differently there.
+100. `src/features/preview/host/panel.ts` (Create).
+     *   One panel, which follows the active editor unless locked.
+     *   A serializer that restores `{ uri, block, v: 1 }`.
+     *   `render` sent after a 150 ms pause in typing, including the unsaved flag.
+     *   Link clicks: confirm with the user, then open only `http`, `https` and `mailto` links with
+         `vscode.env.openExternal`.
+101. `src/features/preview/host/html.ts` (Create). The page and its CSP from Technical Plan section 6,
+     with a fresh nonce.
+102. `src/features/preview/webview/main.ts` (Create).
+     *   Message handling, drawing each block, and the status line.
+     *   Scrolling to the block at the cursor, the renderer switch and the lock toggle.
+     *   Tab focus, and an `aria-live` region for errors.
+103. `src/features/preview/index.ts` (Create). `register(context)` for the open and lock commands and
+     the serializer.
+104. `src/entries/webview.ts` (Create).
+105. `scripts/build.mjs` (Modify). Add `src/entries/webview.ts` → `packages/vscode/dist/webview.js`, and
+     generate `webview.css`.
+106. `test/webview/playwright.config.ts` (Create). Chromium, at `DIAGRAMIST_CHROMIUM` when set; in CI,
+     `npx playwright install chromium`.
+107. `test/webview/harness.html` (Create). Loads `dist/webview.js` from a local HTTP server, under the
+     exact CSP that `html.ts` produces with a fixed test nonce.
+108. `test/webview/vscode-api-stub.ts` (Create). An `acquireVsCodeApi` replacement that records posted
+     messages.
+109. `test/webview/render.spec.ts` (Create). Covers:
+     *   both renderers draw every sample;
+     *   the `status` messages;
+     *   Goal 4's timing, failing above three times the target and reporting the measured value;
+     *   a remote image makes no request (every request is recorded) and nothing is drawn in its place.
+110. `test/webview/csp.spec.ts` (Create). No `securitypolicyviolation` events while drawing the samples
+     with both renderers.
+111. `test/draw/theme-map.test.ts` (Create). Reads every `--pele-*` name in the bundled `pele` and fails
+     if any is missing from the theme map (the brief's check for unmapped variables).
+112. `test/extension/suite/preview.test.ts` (Create). Opening, following the active editor, locking
+     and restoring.
+113. `.github/workflows/ci.yml` (Modify). Install Playwright Chromium on Linux, and run
+     `test:webview`.
+
+**Theme map.** The preview reads VS Code's variables; exports use fixed palettes.
+
+| Pele variable | Preview source | Light export | Dark export |
+| --- | --- | --- | --- |
+| `--pele-bg` | `--vscode-editor-background` | `#ffffff` | `#1e1e1e` |
+| `--pele-fg` | `--vscode-editor-foreground` | `#1f1f1f` | `#e6e6e6` |
+| `--pele-fg-on-light` | fixed | `#1f1f1f` | `#1f1f1f` |
+| `--pele-fg-on-dark` | fixed | `#ffffff` | `#ffffff` |
+| `--pele-muted` | `--vscode-descriptionForeground` | `#6e6e6e` | `#a0a0a0` |
+| `--pele-line` | `--vscode-editor-foreground`; `--vscode-contrastBorder` in high contrast | `#1f1f1f` | `#d4d4d4` |
+| `--pele-surface` | `--vscode-editorWidget-background` | `#f3f3f3` | `#252526` |
+| `--pele-surface-alt` | `--vscode-sideBar-background` | `#e6e6e6` | `#2d2d30` |
+| `--pele-border` | `--vscode-editorWidget-border`; `--vscode-contrastBorder` in high contrast | `#8a8a8a` | `#6b6b6b` |
+| `--pele-accent` | `--vscode-focusBorder` | `#5b7bd5` | `#6b9eff` |
+| `--pele-critical` | `--vscode-errorForeground` | `#e45756` | `#f48771` |
+| `--pele-error` | `--vscode-errorForeground` | `#e45756` | `#f48771` |
+| `--pele-font` | the font stack in item 98 | the same | the same |
+| `--pele-font-mono` | `--vscode-editor-font-family` | `Consolas, Menlo, monospace` | the same |
+| `--pele-title-weight`, `--pele-heading-weight`, `--pele-bold-weight` | `bold` | `bold` | `bold` |
+| `--pele-radius` | `4px` | `4px` | `4px` |
+| `--pele-series-1` to `-4`, `-6`, `-7` | `--vscode-charts-blue`, `-orange`, `-green`, `-red`, `-yellow`, `-purple` | Pele defaults | Pele defaults |
+| `--pele-series-5`, `--pele-series-8` | Pele defaults (`#72b7b2`, `#9d755d`) | Pele defaults | Pele defaults |
+
+### Phase P6: Export
+
+**Gate:** `test/webview/export.spec.ts` and `test/extension/suite/export.test.ts` pass.
+
+114. `src/features/preview/host/export-command.ts` (Create). "Diagramist: Export Diagram…".
+     *   **Choices,** asked through quick picks:
+         *   the diagram, when there are several;
+         *   the renderer;
+         *   SVG or PNG;
+         *   the theme: light, dark or current;
+         *   the scale, 1-4 with a default of 2.
+     *   **Panel:** if no panel is open for the active editor, it opens one and waits for `ready`.
+     *   **Saving:** the save dialog suggests `<file>-<diagram>.<renderer>.<svg|png>` next to the
+         source. The command writes the file with `workspace.fs`.
+     *   **Tests:** it also accepts all choices as arguments, so tests can skip the dialogs.
+115. `src/features/preview/webview/export.ts` (Create).
+     *   **Off-screen redraw:** natural size, with Pele `responsive: false`, or Mermaid.js
+         `htmlLabels: false`.
+     *   **SVG:** the computed `fill`, `stroke`, `stroke-width`, `stroke-dasharray`, `opacity`,
+         `color`, `font-family`, `font-size`, `font-weight`, `font-style`, `text-anchor` and
+         `dominant-baseline` are written onto every element, and any remote `href` is removed.
+     *   **PNG:** the SVG is loaded as a `data:` URL, drawn onto a canvas of natural size × scale, and
+         returned as base64. Above 16,384 px per side, or 100,000,000 px in total, it reports
+         `export-error`.
+     *   **Pele refusal:** a Pele export is refused while Pele reports an error for that diagram.
+116. `test/webview/export.spec.ts` (Create). Covers:
+     *   PNG size equals natural size × scale;
+     *   the size-limit error;
+     *   SVG files contain no `var(--pele` and no remote references;
+     *   the Pele refusal.
+117. `test/extension/suite/export.test.ts` (Create). Runs the command with arguments, and checks the
+     written file.
+
+### Phase P7: Agent setup and diagnostic report
+
+**Gate:**
+
+*   `test/extension/suite/agent-setup.test.ts` passes.
+*   `docs/agents.md` holds a verification table, with each agent's version and the date its commands
+    and skill folder were checked on bshome.
+
+118. `src/features/agent-setup/agents.ts` (Create). For each agent:
+     *   the CLI name;
+     *   the add, remove and list commands, each with its Windows `cmd /c` form;
+     *   the skill folder (D8);
+     *   a source and check date for each of these.
+119. `src/features/agent-setup/connect.ts` (Create). "Diagramist: Connect AI Agent".
+     1.  If `diagramist` isn't on the PATH, offer `npm install -g diagramist@<version>` in a visible
+         terminal.
+     2.  After the user agrees, copy `SKILL.md` into the agent's folder. An existing copy is
+         overwritten only if its version is older.
+     3.  If the MCP server ships, show the agent's add command and, after the user agrees, run it in a
+         visible terminal. If the user declines, the command is copied to the clipboard instead.
+120. `src/features/agent-setup/check-setup.ts` (Create). "Diagramist: Check Agent Setup". It runs
+     `diagramist --version`, and for each agent `<agent> --version`, each with a 10 s limit. If the
+     MCP server ships, it also runs the agent's list command and looks for exit code 0 plus
+     `diagramist` in the output. It reports whether the skill copy is present, and its version.
+121. `src/features/agent-setup/disconnect.ts` (Create). "Diagramist: Disconnect AI Agent". After the
+     user agrees:
+     *   it runs the agent's remove command, if the MCP server ships;
+     *   it deletes only that agent's skill folder.
+
+     It leaves the global `diagramist` install, and says so.
+122. `src/features/agent-setup/report.ts` (Create). "Diagramist: Copy Diagnostic Report", in the
+     format given in Technical Plan section 7.
+123. `test/extension/suite/agent-setup.test.ts` (Create). Uses a temporary `HOME`. Covers:
+     *   how commands are built, per agent and per operating system;
+     *   that skills are copied and removed only in the chosen agent's folder;
+     *   that report redaction leaves out paths unless the user chooses to include them.
+124. `docs/agents.md` (Modify). Completes the guide, with the verification table.
+
+### Phase P8: Documentation, packaging and release
+
+**Gate:**
+
+*   `npm run package` passes within the size limits on CI.
+*   A dry run of the release succeeds: `npm publish --dry-run`, `vsce package`, and `ovsx` checks.
+*   The owner's items are in place.
+
+125. `README.md` (Modify). User documentation:
+     *   what Diagramist is, and what a pass means;
+     *   privacy;
+     *   installing;
+     *   connecting agents;
+     *   the CLI;
+     *   the `targets` comment;
+     *   export;
+     *   troubleshooting;
+     *   the "unofficial" sentence.
+126. `docs/ci.md` (Create). A pre-commit hook that passes the staged diagram files to
+     `diagramist check`, and a GitHub Actions example.
+127. `CONTRIBUTING.md` (Create). The folder map, the import rules, the test commands, the renderer
+     upgrade procedure and the release steps.
+128. `SECURITY.md` (Create). Report vulnerabilities through GitHub's private vulnerability reporting on
+     `beshoysabri/diagramist`. Vulnerabilities in Pele or Mermaid.js go to those projects' own
+     security policies.
+129. `CHANGELOG.md` (Create). Keep a Changelog format, with a "Validator changes" heading for any
+     upgrade that changes a verdict.
+130. `.github/ISSUE_TEMPLATE/bug_report.md` (Create). Asks for the diagnostic report, and points
+     renderer-difference reports to `obsidianmd/pele` or `mermaid-js/mermaid`.
+131. `scripts/package.mjs` (Create). Builds, runs `vsce package --no-dependencies` in `packages/vscode`
+     and `npm pack` in `packages/diagramist` (without `--no-dependencies` if P2 used its fallback),
+     then runs `check-size`.
+132. `scripts/check-size.mjs` (Create). Prints both packed sizes, and fails if either is over 15 MB.
+133. `.github/workflows/ci.yml` (Modify). Add `npm run package` on Linux.
+134. `.github/workflows/release.yml` (Create). Runs on `v*` tags.
+     *   **Permissions:** `contents: read` and `id-token: write`.
+     *   **Steps:**
+         *   build, test and package;
+         *   `npm publish --provenance`, with `--tag next` for odd minor versions;
+         *   `vsce publish` and `ovsx publish`, both with `--pre-release` for odd minor versions.
+     *   **Secrets:** `NPM_TOKEN`, `VSCE_PAT` and `OVSX_PAT`.
+135. `docs/release-checklist.md` (Create). Manual checks before each release:
+     *   Restricted Mode;
+     *   the agent evaluation, when the tool description, SKILL.md or a renderer changed;
+     *   a Windows smoke test with each agent, if the MCP server ships;
+     *   the size gates;
+     *   the changelog.
 
 ### Verification Plan
 
-*   **Build:** `npm run build`. It fails if bundles embed different renderer versions.
-*   **Type checks:** `npm run typecheck`, which runs `tsc --noEmit` for the core, Node and webview
-    configs.
-*   **Import rules:** `npm run lint:deps` (dependency-cruiser).
-*   **Unit tests:** `npm test` (Vitest), with at least 90% line coverage in `src/core`.
-*   **MCP contract:** `npm run test:mcp`.
-*   **Extension:** `npm run test:extension` (`xvfb-run` on Linux).
-*   **Webview and export:** `npm run test:webview` (Playwright with Chromium).
-*   **Offline:** `npm run test:offline` (Linux).
-*   **Packaging:** `npm run package` builds the VSIX and runs `npm pack --dry-run`. Both sizes are
-    recorded in the CI summary, and the build fails above 15 MB.
-*   **Before each release, by hand:** the agent check from Goal 3, with the results recorded in
-    `test/fixtures/agent-eval/`.
-*   **Owed by the author before the first release:**
-    *   a Marketplace publisher ID and an Open VSX namespace;
-    *   an npm account that can publish `diagramist` (the name was free on 2026-11-11);
-    *   the three release tokens as repository secrets.
+*   **Type checks:** `npm run typecheck`.
+*   **Import rules:** `npm run lint:deps`.
+*   **Unit and Node tests:** `npm test`, with Vitest, the network guard, and at least 90% line coverage
+    in `src/core`.
+*   **Independent Mermaid.js check:** `node scripts/verify-corpus-in-browser.mjs`.
+*   **Build:** `npm run build`. It fails if bundles report different renderer versions.
+*   **Checker:** `npm run test:checker`, covering the CLI, the MCP contract and offline use.
+*   **Extension:** `npm run test:extension`, under `xvfb-run` on Linux.
+*   **Webview and export:** `npm run test:webview`.
+*   **Packaging:** `npm run package`, with the 15 MB gates.
+*   **CI matrix:** Linux with Node 20 and 22; macOS and Windows with Node 22.
 
-### Reconciliation with the brief (2026-11-11)
+**Goal measures:**
 
-The draft was compared with [concepts_brief.md](../egm/concepts_brief.md), and seven differences were found.
-The author accepted the proposed resolution for each:
+| Goal | How it is measured |
+| --- | --- |
+| 1 | `format-text` tests (character caps), plus the P3 evaluation (tokens) |
+| 2 | Corpus cases for every `targets` value |
+| 3 | The P3 agent evaluation; repeated for releases that change the tool description, SKILL.md or a renderer |
+| 4 | Timing in `render.spec.ts` |
+| 5 | The diagnostics-versus-CLI comparison in `diagnostics.test.ts` |
+| 6 | `export.spec.ts` |
+| 7 | The network guard, the webview request log and `offline.test.ts` |
+| 8 | `lint:deps` |
 
-1.  **Positions:** results now carry diagram-relative positions as well as file positions.
-2.  **Unsaved edits:** the checker can't see the editor. The preview's status line says when agents
-    are checking a saved file that differs from the editor.
+--------------------------------------------------------------------------------
+
+## Reconciliation with the brief
+
+The draft was compared with [concepts_brief.md](../egm/concepts_brief.md) on 2026-11-11, and the
+review found more differences on 2026-11-13. All are settled:
+
+1.  **Positions:** results carry both file and diagram-relative positions.
+2.  **Unsaved edits:** diagnostics and the agent both check the saved file, and the preview says when
+    the editor has unsaved changes.
 3.  **Per-type examples:** these live in `SKILL.md` (D8), not in an MCP resource.
-4.  **Error lists:** each renderer's verdict holds a list of errors, with at most one entry today.
-5.  **Off switch:** "Disconnect agent" is the off switch for agent tools, and is documented as such.
-6.  **Layout badge:** a badge appears when Pele changes a diagram's layout.
-7.  **Support tiers:** a support tier table goes in `docs/agents.md`.
+4.  **Error lists:** each renderer's result holds a list of errors, with at most one entry in v1.
+5.  **Off switch:** "Disconnect AI Agent" is the off switch for agents, and what it leaves is
+    documented.
+6.  **Layout badge:** dropped, along with the `autoDirection` setting. The preview always keeps the
+    source direction.
+7.  **Support tiers:** the tier table is in `docs/agents.md`.
+8.  **`hasPosition` flag:** the brief asked for one. It is replaced by `position: … | null` plus
+    `anchorLine`.
+9.  **Unmapped `--pele-*` variables:** the brief asked for a CI check; it is `test/draw/theme-map.test.ts`.
+10. **Untrusted snippets:** snippets are marked as untrusted text, as the brief asked.
+11. **Default targets:** the brief proposed checking against Pele; the author later chose "both by
+    default", and then, after the review, Mermaid.js by default (D3).
+
+## Review record
+
+`egm-review` ran uninterrupted from 2026-11-11 to 2026-11-13.
+
+*   10 Goldfish reviewers ran over five stages and reported 179 findings, merged into 30 action items.
+*   The author accepted all 30 proposed fixes ("auto accept"). Three minor items were declined, and one
+    item was contested in part.
+*   The reports are in [docs/egm/review/](../egm/review/).
+
+--------------------------------------------------------------------------------
 
 *Drafted with EGM*
