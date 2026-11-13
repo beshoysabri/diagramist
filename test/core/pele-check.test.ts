@@ -41,4 +41,11 @@ describe("checkWithPele", () => {
     const verdict = await checkWithPele("gantt\n  dateFormat YYYY-MM-DD\n  section S\n  Task :a1, 2026-01-01, 3d");
     expect(verdict.outcome).toBe("pass");
   });
+
+  it("measures text with the measurer it is given", async () => {
+    const calls: string[] = [];
+    const measurer = { width: (text: string, size: number) => (calls.push(text), text.length * size * 0.6) };
+    expect(await checkWithPele("flowchart LR\n  A[Start] --> B[Done]", measurer)).toMatchObject({ outcome: "pass" });
+    expect(calls).toContain("Start");
+  });
 });

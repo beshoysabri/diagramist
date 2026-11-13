@@ -1,12 +1,17 @@
 // The only core code that imports `pele`. Checks a diagram by drawing it with Pele's render().
 import { PeleError, render } from "pele";
+import type { TextMeasurer } from "pele";
 import { PELE_CHECK_OPTIONS } from "../../policy/policy.js";
 import { cleanParserMessage, oneLine } from "../shared/messages.js";
 import type { RawVerdict } from "../types.js";
 
-export async function checkWithPele(text: string): Promise<RawVerdict> {
+/**
+ * `measurer` replaces Pele's own text measuring. A worker that also hosts a browser stand-in passes one,
+ * so that Pele doesn't try the stand-in's canvas.
+ */
+export async function checkWithPele(text: string, measurer?: TextMeasurer): Promise<RawVerdict> {
   try {
-    const result = render(text, PELE_CHECK_OPTIONS);
+    const result = render(text, measurer ? { ...PELE_CHECK_OPTIONS, measurer } : PELE_CHECK_OPTIONS);
     return { outcome: "pass", type: result.mermaidType ?? result.type ?? null };
   } catch (error) {
     if (error instanceof PeleError) {

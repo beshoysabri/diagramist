@@ -1,0 +1,39 @@
+# P2 packaging test on every operating system (docs/designs/diagramist.md, item 41).
+# Temporary: removed once docs/designs/packaging-notes.md records the results.
+name: P2 packaging test
+
+on:
+  workflow_dispatch:
+  push:
+    branches: ["v*"]
+    paths: ["scripts/spike/**", ".github/workflows/spike.yml"]
+
+permissions:
+  contents: read
+
+jobs:
+  spike:
+    name: ${{ matrix.os }} / Node ${{ matrix.node }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: ubuntu-latest, node: "22.12.0" }
+          - { os: ubuntu-latest, node: "22" }
+          - { os: ubuntu-latest, node: "24" }
+          - { os: macos-latest, node: "22" }
+          - { os: windows-latest, node: "22" }
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+      - run: npm ci
+      - name: Run the packaging test
+        shell: bash
+        run: node scripts/spike/bundle-mermaid-worker.mjs --runs 3 | tee -a "$GITHUB_STEP_SUMMARY"
+      - name: Print the full results
+        shell: bash
+        run: cat out/spike/results.json
