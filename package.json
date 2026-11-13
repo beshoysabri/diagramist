@@ -1,0 +1,42 @@
+{
+  "name": "diagramist-repo",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Diagramist: lets AI coding agents check, preview and export Mermaid diagrams with Mermaid.js and Pele. Development repository; the published packages live in packages/.",
+  "license": "MIT",
+  "type": "module",
+  "engines": {
+    "node": ">=22.12"
+  },
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.core.json && tsc -p tsconfig.test.json",
+    "lint:deps": "depcruise src --config .dependency-cruiser.cjs",
+    "test": "vitest run --coverage",
+    "verify:corpus": "node scripts/verify-corpus-in-browser.mjs"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/server": "2.4.0",
+    "jsdom": "31.0.0",
+    "markdown-it": "15.0.3",
+    "mermaid": "12.3.0",
+    "pele": "1.13.0",
+    "zod": "4.6.7"
+  },
+  "devDependencies": {
+    "@modelcontextprotocol/client": "2.4.0",
+    "@playwright/test": "1.65.0",
+    "@types/markdown-it": "14.2.0",
+    "@types/mocha": "10.0.10",
+    "@types/node": "22.20.5",
+    "@types/vscode": "1.90.0",
+    "@vitest/coverage-v8": "5.1.0",
+    "@vscode/test-electron": "3.1.0",
+    "@vscode/vsce": "4.1.0",
+    "dependency-cruiser": "18.7.2",
+    "esbuild": "0.28.2",
+    "mocha": "12.0.3",
+    "ovsx": "1.4.0",
+    "typescript": "6.0.3",
+    "vitest": "5.1.0"
+  }
+}
