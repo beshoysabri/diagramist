@@ -19,6 +19,8 @@ most documentation sites use, and with Pele, Obsidian's renderer. It runs locall
 
 *   Check the files you changed. A folder also works (`diagramist check docs/`); it skips
     `node_modules` and hidden folders.
+*   Run the check as a command of its own, not joined to others with `&&` or `|`: users often
+    allow exactly `diagramist check` to run without asking.
 *   If your tools include Diagramist's MCP tool `check`, you can call it with `path` instead. The
     result text is the same.
 *   If the `diagramist` command isn't found, tell the user it installs with

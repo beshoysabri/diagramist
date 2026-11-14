@@ -1392,9 +1392,17 @@ npm name.
         prefers it. So D8's "no agent shares a folder" holds only when one of the two is set up.
     *   **Codex permissions:** in Codex's Auto mode `diagramist check` runs without a prompt, so a
         rule is needed only outside Auto mode.
-*   **Left in P3:** item 72, the evaluation run. The run needs the
-    owner's go-ahead and his Gemini CLI and Codex accounts; only Claude Code is installed on
-    bshome.
+*   **The evaluation (item 72), Claude Code part, 2026-11-14:** run by
+    `scripts/agent-eval/run-claude.mjs`, with model `claude-sonnet-5-5`; results in
+    `test/fixtures/agent-eval/results-v0.1.md`.
+    *   **Fixing:** 30 of 30 fixed within three checks in both runs, CLI with the skill and MCP
+        without it, against Goal 3's target of 90%.
+    *   **Result sizes:** a passing result is 89 characters, and failing ones 573 to 861.
+    *   **Permissions:** one denial, from a command joined with `&&`. The skill now says to run the
+        check on its own.
+*   **D7, provisional:** for Claude Code the MCP server meets neither condition of the rule. D7
+    stays open until Gemini CLI, Antigravity CLI and Codex have run; those need the owner's
+    logins.
 
 ### Phase P4: Extension shell and diagnostics
 
@@ -1475,6 +1483,23 @@ npm name.
 
 Restricted Mode can't be forced inside `@vscode/test-electron`. Item 90 covers its logic, and P8's
 release checklist covers the real behaviour.
+
+**P4 results (2026-11-14).**
+
+*   **Built:** items 74 to 95, all of them.
+*   **Tests:** the extension tests (10) pass against stable VS Code under `xvfb-run` on bshome. CI runs
+    them on Linux, macOS and Windows.
+*   **Packaging:** `vsce package` gives a 1.95 MB VSIX with the 10 files item 76 allows.
+*   **Decided while building:**
+    *   **Later commands:** the commands that P5 to P7 implement are registered now, and say they
+        arrive in a later preview.
+    *   **Files that can't be checked:** a file that is too large or not UTF-8 gets one Warning on
+        its first line.
+    *   **Test hooks:** `activate` returns a small API that the tests use: the counts, a trust
+        replacement, and agent-setup registration.
+    *   **Version check:** on Windows it runs `diagramist --version` through a shell, because npm's
+        command there is a `.cmd` file.
+    *   **Publisher:** `beshoysabri` stands in until the Marketplace publisher ID exists.
 
 ### Phase P5: Preview
 
