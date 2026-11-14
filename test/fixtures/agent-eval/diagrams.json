@@ -1,0 +1,245 @@
+{
+  "about": "Agent evaluation set (design item 70): 30 diagrams, each with one planted error that Mermaid.js 12.3.0 rejects, and the intended fix, which Mermaid.js accepts.",
+  "diagrams": [
+    {
+      "id": "flow-unclosed-bracket",
+      "category": "flowchart",
+      "error": "A square bracket is never closed.",
+      "fix": "Close the label: A[Start].",
+      "broken": "flowchart LR\n  A[Start --> B[Done]\n",
+      "fixed": "flowchart LR\n  A[Start] --> B[Done]\n"
+    },
+    {
+      "id": "flow-end-node",
+      "category": "flowchart",
+      "error": "A lowercase `end` is used as a node id.",
+      "fix": "Rename the node, for example End[End].",
+      "broken": "flowchart TD\n  A[Begin] --> end\n",
+      "fixed": "flowchart TD\n  A[Begin] --> End[End]\n"
+    },
+    {
+      "id": "flow-parentheses-in-label",
+      "category": "flowchart",
+      "error": "Parentheses inside an unquoted label.",
+      "fix": "Quote the label: A[\"Save (draft)\"].",
+      "broken": "flowchart LR\n  A[Save (draft)] --> B[Publish]\n",
+      "fixed": "flowchart LR\n  A[\"Save (draft)\"] --> B[Publish]\n"
+    },
+    {
+      "id": "flow-single-dash-arrow",
+      "category": "flowchart",
+      "error": "`->` is not a flowchart link.",
+      "fix": "Use -->.",
+      "broken": "flowchart LR\n  A[Login] -> B[Home]\n",
+      "fixed": "flowchart LR\n  A[Login] --> B[Home]\n"
+    },
+    {
+      "id": "flow-misspelled-type",
+      "category": "flowchart",
+      "error": "The diagram type is misspelled as `flowchat`.",
+      "fix": "Write flowchart.",
+      "broken": "flowchat LR\n  A --> B\n",
+      "fixed": "flowchart LR\n  A --> B\n"
+    },
+    {
+      "id": "flow-subgraph-without-end",
+      "category": "flowchart",
+      "error": "A subgraph is never closed.",
+      "fix": "Add `end` after the subgraph's content.",
+      "broken": "flowchart TB\n  subgraph Backend\n    API --> DB\n  Client --> API\n",
+      "fixed": "flowchart TB\n  subgraph Backend\n    API --> DB\n  end\n  Client --> API\n"
+    },
+    {
+      "id": "flow-quotes-in-label",
+      "category": "flowchart",
+      "error": "Double quotes inside a square-bracket label.",
+      "fix": "Quote the label and write the inner quotes as #quot;.",
+      "broken": "flowchart LR\n  A[He said \"hi\"] --> B[Reply]\n",
+      "fixed": "flowchart LR\n  A[\"He said #quot;hi#quot;\"] --> B[Reply]\n"
+    },
+    {
+      "id": "flow-space-in-id",
+      "category": "flowchart",
+      "error": "A node id contains a space.",
+      "fix": "Use an id without spaces and put the text in a label: Svc[My Service].",
+      "broken": "flowchart LR\n  My Service --> B[Queue]\n",
+      "fixed": "flowchart LR\n  Svc[My Service] --> B[Queue]\n"
+    },
+    {
+      "id": "flow-unclosed-brace",
+      "category": "flowchart",
+      "error": "A decision's curly brace is never closed.",
+      "fix": "Close it: A{Is it valid?}.",
+      "broken": "flowchart TD\n  A{Is it valid? --> B[Yes]\n",
+      "fixed": "flowchart TD\n  A{Is it valid?} --> B[Yes]\n"
+    },
+    {
+      "id": "flow-slash-comment",
+      "category": "flowchart",
+      "error": "`//` is not a Mermaid comment.",
+      "fix": "Write comments as %% comment.",
+      "broken": "flowchart LR\n  // main path\n  A --> B\n",
+      "fixed": "flowchart LR\n  %% main path\n  A --> B\n"
+    },
+    {
+      "id": "seq-alt-without-end",
+      "category": "sequence",
+      "error": "An `alt` block is never closed.",
+      "fix": "Add `end` after the block.",
+      "broken": "sequenceDiagram\n  Alice->>Bob: Request\n  alt ok\n    Bob-->>Alice: Data\n",
+      "fixed": "sequenceDiagram\n  Alice->>Bob: Request\n  alt ok\n    Bob-->>Alice: Data\n  end\n"
+    },
+    {
+      "id": "seq-missing-colon",
+      "category": "sequence",
+      "error": "A message has no colon before its text.",
+      "fix": "Write Alice->>Bob: Hello.",
+      "broken": "sequenceDiagram\n  Alice->>Bob Hello\n",
+      "fixed": "sequenceDiagram\n  Alice->>Bob: Hello\n"
+    },
+    {
+      "id": "seq-bad-arrow",
+      "category": "sequence",
+      "error": "`=>>` is not a sequence arrow.",
+      "fix": "Use ->>.",
+      "broken": "sequenceDiagram\n  Alice=>>Bob: Hi\n",
+      "fixed": "sequenceDiagram\n  Alice->>Bob: Hi\n"
+    },
+    {
+      "id": "seq-deactivate-inactive",
+      "category": "sequence",
+      "error": "Bob is deactivated without being activated.",
+      "fix": "Remove the deactivate line, or activate Bob first.",
+      "broken": "sequenceDiagram\n  Alice->>Bob: Ping\n  deactivate Bob\n",
+      "fixed": "sequenceDiagram\n  Alice->>Bob: Ping\n  activate Bob\n  deactivate Bob\n"
+    },
+    {
+      "id": "seq-else-outside-alt",
+      "category": "sequence",
+      "error": "`else` appears outside an `alt` block.",
+      "fix": "Wrap the messages in alt … else … end.",
+      "broken": "sequenceDiagram\n  Alice->>Bob: Ping\n  else retry\n  Bob-->>Alice: Pong\n",
+      "fixed": "sequenceDiagram\n  alt first try\n    Alice->>Bob: Ping\n  else retry\n    Bob-->>Alice: Pong\n  end\n"
+    },
+    {
+      "id": "class-angle-generics",
+      "category": "class, state or ER",
+      "error": "Generics written with angle brackets.",
+      "fix": "Use tildes: Repository~T~.",
+      "broken": "classDiagram\n  class Repository<T> {\n    +find(id) T\n  }\n",
+      "fixed": "classDiagram\n  class Repository~T~ {\n    +find(id) T\n  }\n"
+    },
+    {
+      "id": "er-missing-label",
+      "category": "class, state or ER",
+      "error": "A relationship has no label.",
+      "fix": "Add one after a colon: CUSTOMER ||--o{ ORDER : places.",
+      "broken": "erDiagram\n  CUSTOMER ||--o{ ORDER\n",
+      "fixed": "erDiagram\n  CUSTOMER ||--o{ ORDER : places\n"
+    },
+    {
+      "id": "state-single-dash",
+      "category": "class, state or ER",
+      "error": "`->` is not a state transition.",
+      "fix": "Use -->.",
+      "broken": "stateDiagram-v2\n  [*] -> Idle\n  Idle --> Running\n",
+      "fixed": "stateDiagram-v2\n  [*] --> Idle\n  Idle --> Running\n"
+    },
+    {
+      "id": "class-unclosed-brace",
+      "category": "class, state or ER",
+      "error": "A class body is never closed.",
+      "fix": "Add } after the members.",
+      "broken": "classDiagram\n  class Order {\n    +total: Money\n  class Item\n",
+      "fixed": "classDiagram\n  class Order {\n    +total: Money\n  }\n  class Item\n"
+    },
+    {
+      "id": "er-bad-cardinality",
+      "category": "class, state or ER",
+      "error": "`o` alone is not a cardinality.",
+      "fix": "Use a full one, such as o{ or o|.",
+      "broken": "erDiagram\n  CUSTOMER ||--o ORDER : places\n",
+      "fixed": "erDiagram\n  CUSTOMER ||--o{ ORDER : places\n"
+    },
+    {
+      "id": "gantt-missing-colon",
+      "category": "Gantt, timeline or mindmap",
+      "error": "A task has no colon between its name and data.",
+      "fix": "Write Design :d1, 2026-01-05, 3d.",
+      "broken": "gantt\n  dateFormat YYYY-MM-DD\n  section Build\n  Design d1, 2026-01-05, 3d\n",
+      "fixed": "gantt\n  dateFormat YYYY-MM-DD\n  section Build\n  Design :d1, 2026-01-05, 3d\n"
+    },
+    {
+      "id": "gantt-misspelled-keyword",
+      "category": "Gantt, timeline or mindmap",
+      "error": "`dateFormatt` is misspelled.",
+      "fix": "Write dateFormat.",
+      "broken": "gantt\n  dateFormatt YYYY-MM-DD\n  section Build\n  Design :d1, 2026-01-05, 3d\n",
+      "fixed": "gantt\n  dateFormat YYYY-MM-DD\n  section Build\n  Design :d1, 2026-01-05, 3d\n"
+    },
+    {
+      "id": "mindmap-two-roots",
+      "category": "Gantt, timeline or mindmap",
+      "error": "A mindmap has a second root.",
+      "fix": "Indent the second node under the root.",
+      "broken": "mindmap\n  root((Plan))\n    Goals\n  Second root\n",
+      "fixed": "mindmap\n  root((Plan))\n    Goals\n    Second root\n"
+    },
+    {
+      "id": "mindmap-unclosed-bracket",
+      "category": "Gantt, timeline or mindmap",
+      "error": "A node's square bracket is never closed.",
+      "fix": "Close it: root[Plan].",
+      "broken": "mindmap\n  root[Plan\n    Goals\n    Risks\n",
+      "fixed": "mindmap\n  root[Plan]\n    Goals\n    Risks\n"
+    },
+    {
+      "id": "timeline-missing-colon",
+      "category": "Gantt, timeline or mindmap",
+      "error": "A period has a trailing colon but no event, and no colon after the period.",
+      "fix": "Write 2027 : Launch.",
+      "broken": "timeline\n  title Releases\n  2026 : Alpha : Beta\n  section Later\n  2027 Launch :\n",
+      "fixed": "timeline\n  title Releases\n  2026 : Alpha : Beta\n  section Later\n  2027 : Launch\n"
+    },
+    {
+      "id": "xychart-unclosed-list",
+      "category": "beta or newer type",
+      "error": "A data list is never closed.",
+      "fix": "Close it: bar [10, 20, 30].",
+      "broken": "xychart-beta\n  x-axis [Jan, Feb, Mar]\n  bar [10, 20, 30\n",
+      "fixed": "xychart-beta\n  x-axis [Jan, Feb, Mar]\n  bar [10, 20, 30]\n"
+    },
+    {
+      "id": "sankey-missing-value",
+      "category": "beta or newer type",
+      "error": "A Sankey row has no value.",
+      "fix": "Add a number: Sales,Revenue,10.",
+      "broken": "sankey\n  Sales,Revenue\n",
+      "fixed": "sankey\n  Sales,Revenue,10\n"
+    },
+    {
+      "id": "packet-missing-colon",
+      "category": "beta or newer type",
+      "error": "A packet field has no colon after its bit range.",
+      "fix": "Write 0-15: \"Source port\".",
+      "broken": "packet-beta\n  0-15 \"Source port\"\n  16-31: \"Destination port\"\n",
+      "fixed": "packet-beta\n  0-15: \"Source port\"\n  16-31: \"Destination port\"\n"
+    },
+    {
+      "id": "architecture-unknown-group",
+      "category": "beta or newer type",
+      "error": "A service is placed in a group that doesn't exist.",
+      "fix": "Use the declared group: in api.",
+      "broken": "architecture-beta\n  group api(cloud)[API]\n  service db(database)[Database] in backend\n",
+      "fixed": "architecture-beta\n  group api(cloud)[API]\n  service db(database)[Database] in api\n"
+    },
+    {
+      "id": "block-bad-space",
+      "category": "beta or newer type",
+      "error": "`space:x` needs a number of columns.",
+      "fix": "Write space:2, or space.",
+      "broken": "block-beta\n  columns 3\n  a b c d\n  space:x\n",
+      "fixed": "block-beta\n  columns 3\n  a b c d\n  space:2\n"
+    }
+  ]
+}
