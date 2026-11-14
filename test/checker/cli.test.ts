@@ -1,6 +1,7 @@
 // Design item 67: the built `diagramist` command, run as agents run it. `npm run test:checker`
 // builds packages/diagramist first.
-import { spawnSync } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
+import { once } from "node:events";
 import { mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -82,6 +83,17 @@ describe("diagramist check", () => {
     const { code, stdout } = run("check", "docs");
     expect(code).toBe(0);
     expect(stdout.split("\n").filter(Boolean).map((line) => line.split(":")[0])).toEqual([join("docs", "a", "c.MMD"), join("docs", "b.md")]);
+  });
+
+  it("exits 2, quietly, when the reader stops before checking is done", async () => {
+    for (let i = 0; i < 30; i++) file(`many/d${String(i).padStart(2, "0")}.mmd`, "flowchart LR\n  A --> B\n");
+    const child = spawn(process.execPath, [builtCli, "check", "many"], { cwd: dir });
+    let stderr = "";
+    child.stderr.on("data", (chunk) => (stderr += chunk));
+    child.stdout.once("data", () => child.stdout.destroy());
+    const [code] = await once(child, "exit");
+    expect(code).toBe(2);
+    expect(stderr).toBe("");
   });
 
   it("notes an empty folder without failing", () => {
