@@ -1364,8 +1364,21 @@ npm name.
     tags. It runs every test, then `npm stage publish` through trusted publishing, with the actions
     pinned to commits. The maintainer approves each release on npmjs.com with 2FA. Releases go to
     `latest` until 0.2.0. 0.1.1 is its first release.
-*   **Left in P3:** items 56 and 57 (MCP server and tool description), 62 (SKILL.md), 63
-    (`docs/agents.md`), and 68 to 72 (MCP contract test, offline test and the agent evaluation).
+*   **Since then (2026-11-14):**
+    *   **The skill (item 62):** `skills/diagramist/SKILL.md`, 96 lines. Every syntax tip in it was
+        checked against both renderers. The build stamps the version into the package's copy.
+    *   **The MCP server (items 56 and 57):** `diagramist mcp`, loaded only when used. It stays out
+        of `--help` until D7 decides. The contract test (item 68) drives it with the official
+        client, and finds the same text as the CLI on every corpus file.
+    *   **The offline test (item 69):** runs on Linux CI. CI lifts Ubuntu's AppArmor block on
+        unprivileged namespaces first. It skips on bshome, which keeps the block.
+    *   **The evaluation set (items 70 and 71):** 30 diagrams with their intended fixes, checked by
+        a test that every planted error is a Mermaid.js error and every fix passes both renderers,
+        and `PROCEDURE.md`.
+    *   **Line endings:** `.gitattributes` forces LF, because Windows checkouts used CRLF.
+*   **Left in P3:** item 63 (`docs/agents.md`), and item 72, the evaluation run. The run needs the
+    owner's go-ahead and his Gemini CLI and Codex accounts; only Claude Code is installed on
+    bshome.
 
 ### Phase P4: Extension shell and diagnostics
 
