@@ -30,6 +30,10 @@ jobs:
       - run: npm run typecheck
       - run: npm run lint:deps
       - run: npm test
+      # Ubuntu blocks unprivileged network namespaces by default; the offline test needs one.
+      - name: Allow the offline test's network namespace
+        if: runner.os == 'Linux'
+        run: sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0 || true
       - run: npm run test:checker
 
   verify-corpus:

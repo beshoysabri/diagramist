@@ -2,7 +2,7 @@
 // builds packages/diagramist first.
 import { spawn, spawnSync } from "node:child_process";
 import { once } from "node:events";
-import { mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterAll, describe, expect, it } from "vitest";
@@ -102,6 +102,14 @@ describe("diagramist check", () => {
   });
 });
 
+describe("the package", () => {
+  it("ships the agent skill with its own version", () => {
+    const pkg = JSON.parse(readFileSync(join(builtCli, "..", "..", "package.json"), "utf8"));
+    const skill = readFileSync(join(builtCli, "..", "..", "skills", "diagramist", "SKILL.md"), "utf8");
+    expect(skill).toContain(`diagramistVersion: "${pkg.version}"`);
+  });
+});
+
 describe("diagramist", () => {
   it("passes --self-test", () => {
     const { code, stdout } = run("--self-test");
@@ -115,7 +123,7 @@ describe("diagramist", () => {
 
   it("prints usage for --help, and exits 2 with usage on stderr for a bad command line", () => {
     expect(run("--help")).toMatchObject({ code: 0, stdout: expect.stringContaining("Usage:") });
-    for (const args of [["--bogus"], [], ["check"], ["frobnicate"], ["mcp"]]) {
+    for (const args of [["--bogus"], [], ["check"], ["frobnicate"], ["mcp", "extra"]]) {
       const { code, stdout, stderr } = run(...args);
       expect(code, args.join(" ")).toBe(2);
       expect(stdout, args.join(" ")).toBe("");

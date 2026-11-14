@@ -5,13 +5,13 @@ import { readdir, stat } from "node:fs/promises";
 import { join } from "node:path";
 import { parseArgs } from "node:util";
 import { fileKind } from "../../core/blocks/find-blocks.js";
-import { RENDERERS } from "../../core/policy/policy.js";
 import { formatText } from "../../core/result/format-text.js";
-import type { CheckResult } from "../../core/result/schema.js";
 import { Coordinator } from "../../platform/node/coordinator.js";
 import { createLogger } from "../../platform/node/logger.js";
 import type { Logger } from "../../platform/node/logger.js";
 import { DIAGRAMIST_VERSION, RENDERER_VERSIONS } from "../../platform/node/versions.js";
+import { exitCodeFor } from "./exit-code.js";
+import type { ExitCode } from "./exit-code.js";
 import { runSelfTest } from "./self-test.js";
 
 export const USAGE = `Usage:
@@ -37,8 +37,6 @@ export interface CliOptions {
   logger?: Logger;
   cwd?: string;
 }
-
-type ExitCode = 0 | 1 | 2;
 
 export async function runCli(argv: readonly string[], options: CliOptions = {}): Promise<ExitCode> {
   const out = options.stdout ?? ((text: string) => void process.stdout.write(text));
@@ -73,29 +71,34 @@ export async function runCli(argv: readonly string[], options: CliOptions = {}):
 
   const [command, ...paths] = positionals;
   if (!values["self-test"]) {
-    if (command === "mcp") {
-      err("diagramist: the MCP server isn't part of this version. Use `diagramist check`.\n");
+    // `diagramist mcp` is left out of the usage text until D7's evaluation decides whether it ships.
+    if (command === "mcp" && paths.length > 0) {
+      err("diagramist mcp: takes no arguments.\n");
       return 2;
     }
-    if (command !== "check") {
+    if (command !== "check" && command !== "mcp") {
       err(`diagramist: ${command ? `unknown command "${command}"` : "no command given"}.\n\n${USAGE}`);
       return 2;
     }
-    if (paths.length === 0) {
+    if (command === "check" && paths.length === 0) {
       err(`diagramist check: name at least one file or folder.\n\n${USAGE}`);
       return 2;
     }
   }
 
+  const meta = { checker: `diagramist ${DIAGRAMIST_VERSION}`, renderers: { ...RENDERER_VERSIONS } };
+  const logger = options.logger ?? createLogger();
   const coordinator = new Coordinator({
     workerUrl: options.workerUrl ?? new URL("./check-worker.mjs", import.meta.url),
     mode: "fifo",
-    meta: { checker: `diagramist ${DIAGRAMIST_VERSION}`, renderers: { ...RENDERER_VERSIONS } },
-    logger: options.logger ?? createLogger(),
+    meta,
+    logger,
     cwd: options.cwd,
   });
   try {
     if (values["self-test"]) return await runSelfTest(coordinator, out);
+    // Loaded only when used, so `check` doesn't pay for the MCP SDK.
+    if (command === "mcp") return await (await import("./mcp-server.js")).runMcpServer(coordinator, meta, logger);
     let code: ExitCode = 0;
     for (const path of paths) {
       const { files, empty, problems } = await expand(path, options.cwd);
@@ -116,21 +119,6 @@ export async function runCli(argv: readonly string[], options: CliOptions = {}):
   } finally {
     await coordinator.close();
   }
-}
-
-/** The exit code one file's result calls for. */
-export function exitCodeFor(result: CheckResult): ExitCode {
-  if (result.status !== "checked" && result.status !== "no-diagrams") return 2;
-  let code: ExitCode = 0;
-  for (const block of result.blocks) {
-    for (const renderer of RENDERERS) {
-      for (const problem of block.results[renderer].errors) {
-        if (problem.class === "tool") return 2;
-        if (problem.severity === "error") code = 1;
-      }
-    }
-  }
-  return code;
 }
 
 /** A file stays as given; a folder becomes the diagram files inside it, sorted. */

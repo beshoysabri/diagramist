@@ -1,11 +1,11 @@
 #!/usr/bin/env node
 // Builds packages/diagramist (design items 44 and 45): the CLI and the check worker, bundled with
-// esbuild, plus LICENSE and THIRD_PARTY_NOTICES.md. Both bundles get their version strings from the
-// same build, so they always agree on the renderer versions.
+// esbuild, plus LICENSE, the agent skill and THIRD_PARTY_NOTICES.md. Both bundles get their version
+// strings from the same build, so they always agree on the renderer versions.
 //
 //   node scripts/build.mjs
-import { copyFileSync, readFileSync, rmSync, statSync } from "node:fs";
-import { join, resolve } from "node:path";
+import { copyFileSync, mkdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { dirname, join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { build } from "esbuild";
 import { writeThirdPartyNotices } from "./third-party-notices.mjs";
@@ -63,9 +63,21 @@ async function main() {
   rmSync(dist, { recursive: true, force: true });
   const metafiles = await bundleChecker({ outDir: dist });
   copyFileSync(join(root, "LICENSE"), join(packageDir, "LICENSE"));
+  copySkill(versionOf(packageDir));
   const notices = writeThirdPartyNotices(metafiles, join(packageDir, "THIRD_PARTY_NOTICES.md"), root);
   const size = (file) => `${(statSync(join(dist, file)).size / 1e6).toFixed(2)} MB`;
   console.log(`Built diagramist ${versionOf(packageDir)}: dist/cli.mjs ${size("cli.mjs")}, dist/check-worker.mjs ${size("check-worker.mjs")}; ${notices} bundled packages in THIRD_PARTY_NOTICES.md.`);
+}
+
+/** Copies skills/diagramist/SKILL.md into the package, with the version in metadata.diagramistVersion (D8). */
+function copySkill(version) {
+  const source = readFileSync(join(root, "skills/diagramist/SKILL.md"), "utf8");
+  const versioned = source.replace(/^(\s+diagramistVersion:).*$/m, `$1 "${version}"`);
+  if (!versioned.includes(`diagramistVersion: "${version}"`)) throw new Error("SKILL.md has no metadata.diagramistVersion line");
+  const target = join(packageDir, "skills/diagramist/SKILL.md");
+  rmSync(join(packageDir, "skills"), { recursive: true, force: true });
+  mkdirSync(dirname(target), { recursive: true });
+  writeFileSync(target, versioned);
 }
 
 if (process.argv[1] && pathToFileURL(resolve(process.argv[1])).href === import.meta.url) await main();
