@@ -4,6 +4,7 @@ import { drawWithMermaid } from "../../../draw/mermaid-draw.js";
 import type { MermaidTheme } from "../../../draw/mermaid-draw.js";
 import { drawWithPele } from "../../../draw/pele-draw.js";
 import type { PeleDrawing } from "../../../draw/pele-draw.js";
+import { exportDiagram } from "./export.js";
 import type { HostToWebview, PreviewBlock, PreviewState, Renderer, WebviewToHost } from "../../../platform/messages.js";
 
 export interface VsCodeApi {
@@ -187,9 +188,24 @@ export function start(vscode: VsCodeApi): void {
     showStatus();
   }
 
+  async function answerExport(request: Extract<HostToWebview, { type: "export-request" }>): Promise<void> {
+    const block = current?.blocks.find((b) => b.index === request.blockIndex);
+    if (!current || !block) {
+      vscode.postMessage({ type: "export-error", requestId: request.requestId, message: `There is no diagram ${request.blockIndex} in this file.` });
+      return;
+    }
+    try {
+      const base64 = await exportDiagram({ text: block.text, renderer: request.renderer, format: request.format, theme: request.theme, scale: request.scale, themeKind: current.themeKind });
+      vscode.postMessage({ type: "export-bytes", requestId: request.requestId, format: request.format, base64 });
+    } catch (error) {
+      vscode.postMessage({ type: "export-error", requestId: request.requestId, message: String((error as Error | undefined)?.message ?? error) });
+    }
+  }
+
   window.addEventListener("message", (event: MessageEvent<HostToWebview>) => {
     const message = event.data;
     if (message?.type === "render") void render(message);
+    else if (message?.type === "export-request") void answerExport(message);
     else if (message?.type === "scroll-to-block") {
       currentBlock = message.index;
       for (const [index, view] of views) view.section.classList.toggle("current", index === message.index);

@@ -13,9 +13,8 @@ import { Counts } from "../platform/vscode/counts.js";
 import { createLog } from "../platform/vscode/log.js";
 import { replaceTrustForTests } from "../platform/vscode/trust.js";
 
-/** Commands in the manifest that P6 and P7 implement. */
+/** Commands in the manifest that P7 implements. */
 const LATER: Record<string, string> = {
-  "diagramist.exportDiagram": "Export Diagram…",
   "diagramist.connectAgent": "Connect AI Agent",
   "diagramist.checkAgentSetup": "Check Agent Setup",
   "diagramist.disconnectAgent": "Disconnect AI Agent",

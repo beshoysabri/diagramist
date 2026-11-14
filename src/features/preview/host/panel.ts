@@ -1,17 +1,21 @@
 // The preview panel (design item 100). One panel follows the active editor unless locked, redraws
 // 150 ms after typing stops, scrolls to the diagram at the cursor, opens links only after the user
 // confirms, and comes back after a window reload. It never takes focus.
+import { randomUUID } from "node:crypto";
 import { basename } from "node:path";
 import * as vscode from "vscode";
 import { fileKind, findBlocks } from "../../../core/blocks/find-blocks.js";
 import type { Block } from "../../../core/blocks/find-blocks.js";
-import type { HostToWebview, PreviewState, Renderer, ThemeKind, WebviewToHost } from "../../../platform/messages.js";
+import type { ExportFormat, ExportTheme, HostToWebview, PreviewState, Renderer, ThemeKind, WebviewToHost } from "../../../platform/messages.js";
 import type { ExtensionLog } from "../../../platform/vscode/log.js";
 import { settings } from "../../../platform/vscode/settings.js";
 import { previewHtml } from "./html.js";
 
 export const VIEW_TYPE = "diagramist.preview";
 const TYPING_PAUSE_MS = 150;
+const EXPORT_TIMEOUT_MS = 30_000;
+
+export type ExportOutcome = { base64: string } | { error: string };
 const LINK_SCHEMES = new Set(["http", "https", "mailto"]);
 
 const isDiagramDocument = (document: vscode.TextDocument) => fileKind(document.uri.path) !== null;
@@ -76,6 +80,8 @@ export class PreviewPanel implements vscode.Disposable {
   private ready = false;
   private timer: NodeJS.Timeout | undefined;
   private readonly disposables: vscode.Disposable[] = [];
+  private readonly readyWaiters: Array<() => void> = [];
+  private readonly exports = new Map<string, (outcome: ExportOutcome) => void>();
 
   private constructor(
     private readonly panel: vscode.WebviewPanel,
@@ -120,6 +126,31 @@ export class PreviewPanel implements vscode.Disposable {
     return this.locked;
   }
 
+  get currentRenderer(): Renderer {
+    return this.renderer;
+  }
+
+  /** Resolves once the webview has loaded and can take messages. */
+  whenReady(): Promise<void> {
+    return this.ready ? Promise.resolve() : new Promise((resolve) => this.readyWaiters.push(resolve));
+  }
+
+  /** Asks the webview to export one diagram of the shown document (design item 115). */
+  requestExport(options: { blockIndex: number; renderer: Renderer; format: ExportFormat; theme: ExportTheme; scale: number }): Promise<ExportOutcome> {
+    const requestId = randomUUID();
+    return new Promise((resolve) => {
+      const timer = setTimeout(() => {
+        this.exports.delete(requestId);
+        resolve({ error: "The preview didn't answer within 30 seconds." });
+      }, EXPORT_TIMEOUT_MS);
+      this.exports.set(requestId, (outcome) => {
+        clearTimeout(timer);
+        resolve(outcome);
+      });
+      this.post({ type: "export-request", requestId, ...options });
+    });
+  }
+
   toggleLock(): void {
     this.locked = !this.locked;
     this.render();
@@ -132,7 +163,7 @@ export class PreviewPanel implements vscode.Disposable {
     this.panel.dispose();
   }
 
-  private setDocument(document: vscode.TextDocument): void {
+  setDocument(document: vscode.TextDocument): void {
     if (document === this.document) return;
     this.document = document;
     this.block = 1;
@@ -183,6 +214,15 @@ export class PreviewPanel implements vscode.Disposable {
         this.ready = true;
         this.render();
         this.post({ type: "scroll-to-block", index: this.block });
+        for (const resolve of this.readyWaiters.splice(0)) resolve();
+        return;
+      case "export-bytes":
+        this.exports.get(message.requestId)?.({ base64: message.base64 });
+        this.exports.delete(message.requestId);
+        return;
+      case "export-error":
+        this.exports.get(message.requestId)?.({ error: message.message });
+        this.exports.delete(message.requestId);
         return;
       case "renderer-switch":
         this.renderer = message.renderer;

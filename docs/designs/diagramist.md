@@ -1661,6 +1661,30 @@ release checklist covers the real behaviour.
 117. `test/extension/suite/export.test.ts` (Create). Runs the command with arguments, and checks the
      written file.
 
+**P6 results (2026-11-14).**
+
+*   **Built:** items 114 to 117, all of them.
+*   **Tests:**
+    *   **Webview (6 new, 13 in all):** for both renderers, a PNG is the natural size times the scale
+        at 1×, 2× and 3×. SVGs in light, dark and current themes have no `var(`, no remote `href` and
+        no link target. The size-limit refusal and the Pele refusal are covered too.
+    *   **Extension (3 new, 17 in all):** the command, run with arguments, writes an SVG and a PNG,
+        and writes nothing when Pele can't draw.
+*   **Decided while building:**
+    *   **Backgrounds:** exports get a background rectangle, `#ffffff` for light, `#1e1e1e` for dark,
+        or the editor's colour for "current", so dark exports stay readable on white slides.
+    *   **Literal colours:** Pele draws through private variables (`--_bg: var(--pele-bg, #fff)`,
+        `fill="var(--_fg)"`). The export removes every attribute that names a variable, and every
+        style rule that does, after writing the computed values onto each element.
+    *   **The command's order:** it asks its questions and draws the export, then shows the save
+        dialog, so a refusal comes before you pick a file name.
+    *   **The Pele refusal** offers "Export with Mermaid.js" (D3). A notice without a button is not
+        awaited.
+*   **A finding for R1:** the corpus case `gantt-invalid-date` (`2026-13-45`) passes Mermaid.js's
+    parse, as the corpus records, but fails when Mermaid.js draws it, with "Invalid date". The
+    checker's Pele warning is the only signal of that. The Mermaid.js export test uses `sankey-abc`
+    instead, which Mermaid.js draws and Pele refuses.
+
 ### Phase P7: Agent setup and diagnostic report
 
 **Gate:**

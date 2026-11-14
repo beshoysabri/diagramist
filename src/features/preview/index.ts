@@ -1,9 +1,11 @@
-// The preview feature (design item 103): the open and lock commands, and the serializer that brings
-// the panel back after a window reload.
+// The preview feature (design items 103 and 114): the open, lock and export commands, and the
+// serializer that brings the panel back after a window reload.
 import * as vscode from "vscode";
 import { fileKind } from "../../core/blocks/find-blocks.js";
 import type { PreviewState } from "../../platform/messages.js";
 import type { ExtensionLog } from "../../platform/vscode/log.js";
+import { exportDiagram } from "./host/export-command.js";
+import type { ExportArgs } from "./host/export-command.js";
 import { PreviewPanel, VIEW_TYPE } from "./host/panel.js";
 
 export function register(context: vscode.ExtensionContext, deps: { log: ExtensionLog }): void {
@@ -13,6 +15,9 @@ export function register(context: vscode.ExtensionContext, deps: { log: Extensio
       if (PreviewPanel.active) PreviewPanel.active.toggleLock();
       else void vscode.window.showInformationMessage("Diagramist: open a preview first.");
     }),
+    vscode.commands.registerCommand("diagramist.exportDiagram", (args?: ExportArgs | vscode.Uri) =>
+      exportDiagram(context.extensionUri, deps.log, args instanceof vscode.Uri ? { uri: args.toString() } : args),
+    ),
     vscode.window.registerWebviewPanelSerializer(VIEW_TYPE, {
       deserializeWebviewPanel: (panel, state) => PreviewPanel.restore(panel, context.extensionUri, deps.log, state as PreviewState | undefined),
     }),

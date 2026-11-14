@@ -1,6 +1,6 @@
 // Draws a diagram with Pele in the browser (design item 98), with the checks' fixed options and the
 // shared font stack. Pele's own error display shows inside the element; errors are also reported.
-import { mount } from "pele";
+import { mount, render } from "pele";
 import type { Mounted } from "pele";
 import { PELE_CHECK_OPTIONS } from "../core/policy/policy.js";
 import { FONT_STACK } from "./theme-map.js";
@@ -32,4 +32,10 @@ export function drawWithPele(element: HTMLElement, text: string, onResult: (erro
     update: (next) => mounted.update(next, options),
     destroy: () => mounted.destroy(),
   };
+}
+
+/** Pele's SVG at natural size, for exports (design item 115). Throws Pele's error when it can't draw. */
+export function renderPeleSvg(text: string): { svg: string; width: number; height: number } {
+  const result = render(text, { ...PELE_CHECK_OPTIONS, responsive: false, fontFamily: FONT_STACK });
+  return { svg: result.svg, width: result.width, height: result.height };
 }
