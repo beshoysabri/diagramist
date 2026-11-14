@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
-const text = readFileSync(join(process.cwd(), "skills/diagramist/SKILL.md"), "utf8");
+const text = readFileSync(join(process.cwd(), "skills/diagramist/SKILL.md"), "utf8").replace(/\r\n/g, "\n");
 const [, frontmatter = "", body = ""] = /^---\n([\s\S]*?)\n---\n([\s\S]*)$/.exec(text) ?? [];
 
 describe("skills/diagramist/SKILL.md", () => {
