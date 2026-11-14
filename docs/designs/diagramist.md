@@ -891,7 +891,7 @@ CA-06.*
 | R5 | Memory per agent session | A checker process uses about 55 to 65 MB before its worker starts, 125 to 145 MB once it is ready, 145 to 165 MB after typical diagrams and 195 to 230 MB with every diagram type loaded (P2, Linux and macOS; Windows reports less; [packaging notes](packaging-notes.md)) | linkedom, the lightest stand-in, and one worker for both renderers (P2); the worker starts only on the first diagram; the 256 MB budget in the NFRs | Many parallel sessions multiply the cost |
 | R6 | Reading arbitrary files | A pre-approved tool could read files the user didn't intend | Diagram file types only, regular files, real paths; untrusted labels (section 6) | Any diagram file the user's account can read can be checked |
 | R7 | One diagram freezes the preview | The webview draws without a time limit | A typing pause; the 50,000-character and 5,000-edge limits; the last good drawing kept | A pathological diagram can stall the preview panel (not VS Code itself) until it is closed |
-| R8 | Supply chain | The extension offers `npm install -g diagramist`, so the npm name and its publish token matter | npm has no reservation and forbids placeholder packages, so the first working CLI (0.1.0) is published early in P3, by hand with 2FA; every later release comes only from CI through npm trusted publishing, with provenance and no stored token | A compromised npm account |
+| R8 | Supply chain | The extension offers `npm install -g diagramist`, so the npm name and its publish token matter | npm has no reservation and forbids placeholder packages, so the first working CLI (0.1.0) is published early in P3, by hand with 2FA; every later release comes only from CI through npm trusted publishing with no stored token, stage-only, so the maintainer approves each one with 2FA; publishing with tokens is disallowed | A compromised npm account |
 | R9 | Agents' CLIs change | Commands and skill folders change between agent releases | Use the agents' own commands; re-check before each release (P7, P8); dated sources | Breakage between checks |
 | R10 | One maintainer | 2 renderers × 3 agents × 3 operating systems × remote setups | Support tiers in `docs/agents.md`; CI covers the checker on three operating systems | Best-effort combinations may break |
 
@@ -1360,6 +1360,10 @@ npm name.
     *   **MCP:** `diagramist mcp` exits 2 with a message until D7 decides.
     *   **Folder scans:** they skip hidden folders, but not hidden files.
     *   **Worker output:** anything the worker prints goes to the log at trace level, never to stdout.
+*   **Release workflow, early:** `.github/workflows/release.yml` (item 134's npm part) runs on `v*`
+    tags. It runs every test, then `npm stage publish` through trusted publishing, with the actions
+    pinned to commits. The maintainer approves each release on npmjs.com with 2FA. Releases go to
+    `latest` until 0.2.0. 0.1.1 is its first release.
 *   **Left in P3:** items 56 and 57 (MCP server and tool description), 62 (SKILL.md), 63
     (`docs/agents.md`), and 68 to 72 (MCP contract test, offline test and the agent evaluation).
 

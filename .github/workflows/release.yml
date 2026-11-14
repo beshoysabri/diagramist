@@ -1,0 +1,48 @@
+# Releases the diagramist npm package when a version tag such as v0.1.1 is pushed (design item 134).
+# npm trusted publishing: GitHub proves this run's identity to npm, so no npm token is stored.
+# `npm stage publish` submits the release, and a maintainer approves it on npmjs.com with 2FA.
+# Until the first stable release (0.2.0), every release goes to the `latest` tag. P8 adds the VS Code
+# extension and the odd/even minor rule (`--tag next` for odd minors).
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  npm:
+    name: Stage the npm package
+    runs-on: ubuntu-latest
+    steps:
+      # Pinned to commits, because this job can publish. No dependency cache, for the same reason.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: "24"
+          registry-url: "https://registry.npmjs.org"
+      - name: Check that the tag matches the package version
+        run: |
+          version=$(node -p "require('./packages/diagramist/package.json').version")
+          if [ "v$version" != "$GITHUB_REF_NAME" ]; then
+            echo "::error::Tag $GITHUB_REF_NAME doesn't match packages/diagramist version $version"
+            exit 1
+          fi
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm run lint:deps
+      - run: npm test
+      - name: Build the package and test the built CLI
+        run: npm run test:checker
+      - name: Use an npm with staged and trusted publishing (11.15 or later)
+        run: npm install --global npm@11.21.2
+      - name: Stage the release on npm
+        working-directory: packages/diagramist
+        run: npm stage publish
