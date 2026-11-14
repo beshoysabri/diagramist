@@ -1,27 +1,19 @@
 // D1's version check. When the extension activates, it runs `diagramist --version` once, with a 5 s
 // limit. A different version gets a non-blocking notice with a "Copy update command" button. A
 // missing command is mentioned only once an agent has been connected in this profile (P7 sets that).
-import { execFile } from "node:child_process";
 import * as vscode from "vscode";
 import type { Counts } from "../../platform/vscode/counts.js";
 import type { ExtensionLog } from "../../platform/vscode/log.js";
+import { runVersion } from "./run-command.js";
+import type { CommandOutcome } from "./run-command.js";
 
 export const AGENT_CONNECTED_KEY = "diagramist.agentConnected";
 
 export type VersionCheck = { status: "same" | "different"; found: string } | { status: "missing" | "unreadable"; found: null };
 
-export type RunVersion = () => Promise<{ ok: true; stdout: string } | { ok: false; missing: boolean }>;
+export type RunVersion = () => Promise<CommandOutcome>;
 
-const runInstalledVersion: RunVersion = () =>
-  new Promise((done) => {
-    // npm's command on Windows is a .cmd file, which needs a shell.
-    execFile("diagramist", ["--version"], { timeout: 5_000, shell: process.platform === "win32", windowsHide: true }, (error, stdout, stderr) => {
-      if (!error) return done({ ok: true, stdout });
-      // ENOENT without a shell; through cmd.exe, a missing command prints "is not recognized".
-      const missing = (error as NodeJS.ErrnoException).code === "ENOENT" || /not recognized|not found/i.test(String(stderr));
-      done({ ok: false, missing });
-    });
-  });
+const runInstalledVersion: RunVersion = () => runVersion("diagramist", 5_000);
 
 export async function checkInstalledVersion(extensionVersion: string, run: RunVersion = runInstalledVersion): Promise<VersionCheck> {
   const outcome = await run();

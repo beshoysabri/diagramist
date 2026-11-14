@@ -4,3 +4,4 @@ import "./suite/diagnostics.test.js";
 import "./suite/settings.test.js";
 import "./suite/preview.test.js";
 import "./suite/export.test.js";
+import "./suite/agent-setup.test.js";

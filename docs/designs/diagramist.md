@@ -1723,6 +1723,26 @@ release checklist covers the real behaviour.
      *   that report redaction leaves out paths unless the user chooses to include them.
 124. `docs/agents.md` (Modify). Completes the guide, with the verification table.
 
+**P7 results (2026-11-14).**
+
+*   **Built:** items 118 to 124. The extension tests number 23, 6 of them for agent setup.
+*   **Decided while building:**
+    *   **No MCP step:** D7 leaves the MCP server out of v1, so Connect, Check and Disconnect skip
+        it. `agents.ts` still holds each agent's add, remove and list commands, with the `cmd /c`
+        form for Windows, for when that changes. Antigravity CLI's `agy mcp add` has no documented
+        argument order, so it records the config file instead.
+    *   **After Connect:** it names the agent's permission file and offers to copy the rule (U2).
+    *   **Disconnect** deletes a folder only if its SKILL.md says `name: diagramist`. It warns when
+        another agent reads the same folder: Gemini CLI reads Codex's `~/.agents/skills`, and
+        Antigravity CLI reads Gemini CLI's `~/.gemini/skills`.
+    *   **Restricted Mode:** Connect, Check and Disconnect are off. The report still works there, and
+        says the setup wasn't checked.
+    *   **Test hook:** the tests point agent setup at a temporary home folder through the extension's
+        test API, not the real `HOME`.
+*   **Verification table:** in `docs/agents.md`. Claude Code 2.1.311 is checked on bshome; the other
+    three agents are checked against their documentation only, until the owner tries them after
+    publishing.
+
 ### Phase P8: Documentation, packaging and release
 
 **Gate:**

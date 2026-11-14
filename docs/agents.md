@@ -14,8 +14,20 @@ before each release.
     0.1.1. Until then, take it from [this repository](../skills/diagramist/SKILL.md).
 3.  **Permission** for the agent to run `diagramist check` without asking you each time.
 
-An MCP server, `diagramist mcp`, is being evaluated against the plain command. It is described at
-the end, for that evaluation only.
+**With the VS Code extension,** run "Diagramist: Connect AI Agent" and pick the agent:
+
+1.  **The command:** if `diagramist` is missing, it offers the install line in a terminal you can
+    watch.
+2.  **The skill:** after you agree, it copies the skill into that agent's folder. A newer copy
+    already there is kept.
+3.  **Permission:** it tells you which file the permission rule goes in, and can copy the rule for
+    you.
+
+"Diagramist: Check Agent Setup" shows each agent's version and its skill copy. "Diagramist:
+Disconnect AI Agent" deletes only that agent's copy. The steps below do the same by hand.
+
+The MCP server, `diagramist mcp`, is not part of v1: the agent evaluation (design decision D7)
+found the plain command works as well. It is described at the end.
 
 ## Install Diagramist
 
@@ -180,6 +192,18 @@ Google's agent for personal accounts: free, Google AI Pro and Ultra. Its command
     can't start it as an MCP server, start it through `cmd /c diagramist mcp` instead.
 *   **"Node.js 22.12 or later":** check with `node --version`.
 
+## Verification
+
+| Agent | Version | Checked on bshome | What was checked |
+| --- | --- | --- | --- |
+| Claude Code | 2.1.311 | 2026-11-14 | 60 headless sessions in the agent evaluation: the skill loads from a `.claude/skills/diagramist/` folder, `Bash(diagramist check *)` runs the check without a prompt, and the MCP server works through `--mcp-config` |
+| Gemini CLI | not installed | – | Commands and folders from its documentation, checked 2026-11-14 |
+| Antigravity CLI | not installed | – | Commands and folders from its documentation, checked 2026-11-14 |
+| Codex | not installed | – | Commands and folders from its documentation, checked 2026-11-14 |
+
+The three agents that aren't installed on bshome will be tried by hand once the extension is
+published.
+
 ## Support
 
 | Tier | Setups |
@@ -188,11 +212,11 @@ Google's agent for personal accounts: free, Google AI Pro and Ultra. Its command
 | Best effort | macOS; Windows; the agents' own VS Code panels; Remote-SSH; WSL |
 | Unsupported | VS Code for the Web |
 
-## The MCP server (evaluation only)
+## The MCP server (not in v1)
 
-`diagramist mcp` serves one read-only tool, `check`, over stdio. Its answers are the same text as
-`diagramist check`. Whether it ships in v1 depends on the agent evaluation (design decision D7),
-so treat these steps as provisional.
+`diagramist mcp` serves one read-only tool, `check`, over stdio, and answers with the same text as
+`diagramist check`. Claude Code did as well without it in the agent evaluation, so v1 leaves it out
+of the docs and the VS Code setup. The commands below are kept for when that changes.
 
 | Agent | Register | Pre-approve the tool |
 | --- | --- | --- |

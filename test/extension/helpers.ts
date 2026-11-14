@@ -12,6 +12,7 @@ export interface TestApi {
   replaceTrustForTests(replacement?: { isTrusted(): boolean; onDidGrant(listener: () => void): vscode.Disposable }): void;
   registerAgentSetupForTests(context: Pick<vscode.ExtensionContext, "subscriptions" | "globalState">): void;
   restorePreviewForTests(state: { uri: string; block: number; v: 1 }): Promise<void>;
+  setAgentHomeForTests(dir?: string): void;
 }
 
 export async function activate(): Promise<TestApi> {
