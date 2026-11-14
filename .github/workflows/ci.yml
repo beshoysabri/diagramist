@@ -70,6 +70,26 @@ jobs:
       - run: npx playwright install --with-deps chromium
       - run: npm run test:webview
 
+  package:
+    name: Packages within size limits, and a release dry run
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "24"
+          cache: npm
+      - run: npm ci
+      - run: npm run package
+      - name: npm publish --dry-run, for a version not yet on npm
+        run: |
+          version=$(node -p "require('./packages/diagramist/package.json').version")
+          if npm view "diagramist@$version" version > /dev/null 2>&1; then
+            echo "::notice::diagramist $version is already on npm; the dry run waits for the next version."
+          else
+            npx --yes npm@11.21.2 publish --dry-run "./out/package/diagramist-$version.tgz"
+          fi
+
   verify-corpus:
     name: Mermaid.js results checked in a real browser
     runs-on: ubuntu-latest

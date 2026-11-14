@@ -1792,6 +1792,25 @@ release checklist covers the real behaviour.
      *   the size gates;
      *   the changelog.
 
+**P8 results (2026-11-14).**
+
+*   **Built:** items 125 to 135.
+    *   **Packaging:** `npm run package` gives a 3.68 MB VSIX (12 files) and a 2.11 MB npm tarball,
+        both well under 15 MB. CI runs it, with an `npm publish --dry-run` whenever the version isn't
+        on npm yet.
+    *   **Security:** private vulnerability reporting is on for the repository, as `SECURITY.md`
+        says.
+*   **The release workflow (item 134), as built:**
+    *   **Jobs:** one job builds, tests and packs, with no publishing rights. Three jobs then publish
+        those exact files: npm (`npm stage publish` through trusted publishing), the Marketplace
+        (`vsce publish --oidc`) and Open VSX (`ovsx publish` with `OVSX_PAT`).
+    *   **Open VSX:** skipped, with a notice, until that secret exists.
+    *   **Pre-releases:** odd minor versions go out as pre-releases on the Marketplace and Open VSX.
+    *   **Pins:** the actions are pinned to commits, at checkout v7.0.1, setup-node v7.1.0,
+        upload-artifact v7.0.2 and download-artifact v8.0.2.
+*   **Still owed by the owner:** the Open VSX namespace and the `OVSX_PAT` secret. The release itself
+    happens when the owner asks for it.
+
 ### Verification Plan
 
 *   **Type checks:** `npm run typecheck`.

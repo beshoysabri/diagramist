@@ -1,8 +1,11 @@
-# Releases the diagramist npm package when a version tag such as v0.1.1 is pushed (design item 134).
-# npm trusted publishing: GitHub proves this run's identity to npm, so no npm token is stored.
-# `npm stage publish` submits the release, and a maintainer approves it on npmjs.com with 2FA.
-# Until the first stable release (0.2.0), every release goes to the `latest` tag. P8 adds the VS Code
-# extension and the odd/even minor rule (`--tag next` for odd minors).
+# Releases Diagramist when a version tag such as v0.1.2 is pushed (design item 134). One job builds,
+# tests and packs, with no publishing rights; small jobs then publish exactly those files:
+#   * npm: `npm stage publish` through npm trusted publishing (no token). A maintainer approves the
+#     staged release on npmjs.com with 2FA.
+#   * VS Code Marketplace: `vsce publish --oidc` through Marketplace Trusted Publishing (no token).
+#   * Open VSX: `ovsx publish` with the OVSX_PAT secret; skipped while that secret isn't set.
+# Odd minor versions (0.1.x, 0.3.x) are pre-releases on the Marketplace and Open VSX. On npm every
+# release goes to `latest` until the first stable release, 0.2.0.
 name: Release
 
 on:
@@ -11,38 +14,103 @@ on:
 
 permissions:
   contents: read
-  id-token: write
 
 concurrency:
   group: release
   cancel-in-progress: false
 
 jobs:
-  npm:
-    name: Stage the npm package
+  build:
+    name: Build, test and pack
     runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      prerelease: ${{ steps.version.outputs.prerelease }}
     steps:
-      # Pinned to commits, because this job can publish. No dependency cache, for the same reason.
+      # Pinned to commits, because the files this job makes get published. No dependency cache.
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: "24"
-          registry-url: "https://registry.npmjs.org"
-      - name: Check that the tag matches the package version
+      - name: Check that the tag matches the packages' version
+        id: version
         run: |
           version=$(node -p "require('./packages/diagramist/package.json').version")
           if [ "v$version" != "$GITHUB_REF_NAME" ]; then
-            echo "::error::Tag $GITHUB_REF_NAME doesn't match packages/diagramist version $version"
+            echo "::error::Tag $GITHUB_REF_NAME doesn't match version $version"
             exit 1
           fi
+          minor=$(echo "$version" | cut -d. -f2)
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "prerelease=$([ $((minor % 2)) -eq 1 ] && echo true || echo false)" >> "$GITHUB_OUTPUT"
       - run: npm ci
       - run: npm run typecheck
       - run: npm run lint:deps
       - run: npm test
-      - name: Build the package and test the built CLI
-        run: npm run test:checker
+      - run: npm run test:checker
+      - name: Pack both packages and check their sizes
+        run: npm run package
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: packages
+          path: out/package/
+          if-no-files-found: error
+
+  npm:
+    name: Stage the npm package
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: "24"
+          registry-url: "https://registry.npmjs.org"
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: packages
       - name: Use an npm with staged and trusted publishing (11.15 or later)
         run: npm install --global npm@11.21.2
       - name: Stage the release on npm
-        working-directory: packages/diagramist
-        run: npm stage publish
+        run: npm stage publish "./diagramist-${{ needs.build.outputs.version }}.tgz"
+
+  marketplace:
+    name: Publish to the VS Code Marketplace
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: "24"
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: packages
+      - name: Publish through Marketplace Trusted Publishing
+        run: npx --yes @vscode/vsce@4.1.0 publish --oidc --packagePath "./diagramist-${{ needs.build.outputs.version }}.vsix" ${{ needs.build.outputs.prerelease == 'true' && '--pre-release' || '' }}
+
+  open-vsx:
+    name: Publish to Open VSX
+    needs: build
+    runs-on: ubuntu-latest
+    env:
+      OVSX_PAT: ${{ secrets.OVSX_PAT }}
+    steps:
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        if: env.OVSX_PAT != ''
+        with:
+          node-version: "24"
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        if: env.OVSX_PAT != ''
+        with:
+          name: packages
+      - name: Publish with the Open VSX token
+        if: env.OVSX_PAT != ''
+        run: npx --yes ovsx@1.4.0 publish --packagePath "./diagramist-${{ needs.build.outputs.version }}.vsix" ${{ needs.build.outputs.prerelease == 'true' && '--pre-release' || '' }}
+      - name: Skip, until the OVSX_PAT secret exists
+        if: env.OVSX_PAT == ''
+        run: echo "::notice::Open VSX skipped. Add the OVSX_PAT repository secret to publish there."

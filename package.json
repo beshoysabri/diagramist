@@ -16,7 +16,8 @@
     "build": "node scripts/build.mjs",
     "test:checker": "node scripts/build.mjs && vitest run --project checker",
     "test:extension": "node scripts/build.mjs && node test/extension/run-tests.mjs",
-    "test:webview": "node scripts/build.mjs && playwright test -c test/webview/playwright.config.ts"
+    "test:webview": "node scripts/build.mjs && playwright test -c test/webview/playwright.config.ts",
+    "package": "node scripts/package.mjs"
   },
   "dependencies": {
     "@modelcontextprotocol/server": "2.4.0",
