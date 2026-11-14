@@ -28,7 +28,7 @@ export default defineConfig({
         test: {
           name: "core",
           environment: "node",
-          include: ["test/core/**/*.test.ts"],
+          include: ["test/core/**/*.test.ts", "test/draw/**/*.test.ts"],
           exclude: ["test/core/mermaid-check.test.ts"],
         },
       },

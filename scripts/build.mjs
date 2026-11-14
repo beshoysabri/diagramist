@@ -64,6 +64,39 @@ export async function bundleChecker({ outDir, minify = true }) {
   return [cli.metafile, worker.metafile];
 }
 
+/** Builds the preview's webview.js (a browser script) and webview.css (design item 105) into `outDir`. */
+export async function bundleWebview({ outDir, minify = true }) {
+  const common = commonOptions(minify);
+  const webview = await build({
+    ...common,
+    platform: "browser",
+    format: "iife",
+    target: "chrome120",
+    external: [],
+    entryPoints: [join(root, "src/entries/webview.ts")],
+    outfile: join(outDir, "webview.js"),
+  });
+  // The styles: the preview's own, then the theme map's variables (design item 97).
+  const styles = await build({
+    ...common,
+    metafile: false,
+    write: false,
+    platform: "neutral",
+    format: "esm",
+    stdin: {
+      contents: 'export { BASE_CSS } from "./src/features/preview/webview/styles.ts"; export { previewCss } from "./src/draw/theme-map.ts";',
+      resolveDir: root,
+      loader: "ts",
+    },
+  });
+  const { BASE_CSS, previewCss } = await import(`data:text/javascript;base64,${Buffer.from(styles.outputFiles[0].text).toString("base64")}`);
+  writeFileSync(join(outDir, "webview.css"), `${BASE_CSS.trim()}
+
+${previewCss()}
+`);
+  return [webview.metafile];
+}
+
 /** Builds extension.cjs (CommonJS, for VS Code's extension host) and check-worker.mjs into `outDir`. */
 export async function bundleExtension({ outDir, minify = true }) {
   const common = commonOptions(minify);
@@ -77,14 +110,14 @@ export async function bundleExtension({ outDir, minify = true }) {
     external: [...common.external, "vscode"],
   });
   const worker = await build({ ...common, entryPoints: [join(root, "src/entries/check-worker.ts")], outfile: join(outDir, "check-worker.mjs"), banner: { js: banner } });
-  return [extension.metafile, worker.metafile];
+  return [extension.metafile, worker.metafile, ...(await bundleWebview({ outDir, minify }))];
 }
 
 async function main() {
   const version = versionOf(packageDir);
   if (versionOf(extensionDir) !== version) throw new Error(`packages/vscode is ${versionOf(extensionDir)} but packages/diagramist is ${version}; they share one version`);
   const size = (dir, file) => `${(statSync(join(dir, "dist", file)).size / 1e6).toFixed(2)} MB`;
-  for (const [dir, bundle, files] of [[packageDir, bundleChecker, ["cli.mjs", "check-worker.mjs"]], [extensionDir, bundleExtension, ["extension.cjs", "check-worker.mjs"]]]) {
+  for (const [dir, bundle, files] of [[packageDir, bundleChecker, ["cli.mjs", "check-worker.mjs"]], [extensionDir, bundleExtension, ["extension.cjs", "check-worker.mjs", "webview.js"]]]) {
     rmSync(join(dir, "dist"), { recursive: true, force: true });
     const metafiles = await bundle({ outDir: join(dir, "dist") });
     copyFileSync(join(root, "LICENSE"), join(dir, "LICENSE"));

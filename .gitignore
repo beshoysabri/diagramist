@@ -10,3 +10,5 @@ coverage/
 packages/*/LICENSE
 packages/*/THIRD_PARTY_NOTICES.md
 packages/*/skills/
+test-results/
+playwright-report/

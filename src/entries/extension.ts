@@ -1,20 +1,20 @@
-// The VS Code extension (design item 86). `activate` sets up the log, then registers diagnostics and
-// agent setup, which share one coordinator; `deactivate` stops the check worker. Commands that later
-// phases implement answer with a short notice until then.
+// The VS Code extension (design item 86). `activate` sets up the log, then registers diagnostics (on
+// the shared coordinator), the preview and agent setup; `deactivate` stops the check worker. Commands
+// that later phases implement answer with a short notice until then.
 import { pathToFileURL } from "node:url";
 import * as vscode from "vscode";
 import * as agentSetup from "../features/agent-setup/index.js";
 import * as diagnostics from "../features/diagnostics/index.js";
+import * as preview from "../features/preview/index.js";
+import type { PreviewState } from "../platform/messages.js";
 import { Coordinator } from "../platform/node/coordinator.js";
 import { DIAGRAMIST_VERSION, RENDERER_VERSIONS } from "../platform/node/versions.js";
 import { Counts } from "../platform/vscode/counts.js";
 import { createLog } from "../platform/vscode/log.js";
 import { replaceTrustForTests } from "../platform/vscode/trust.js";
 
-/** Commands in the manifest that P5 to P7 implement. */
+/** Commands in the manifest that P6 and P7 implement. */
 const LATER: Record<string, string> = {
-  "diagramist.openPreviewToSide": "Open Preview to the Side",
-  "diagramist.togglePreviewLock": "Toggle Preview Lock",
   "diagramist.exportDiagram": "Export Diagram…",
   "diagramist.connectAgent": "Connect AI Agent",
   "diagramist.checkAgentSetup": "Check Agent Setup",
@@ -35,6 +35,7 @@ export function activate(context: vscode.ExtensionContext) {
     logger: log,
   });
   diagnostics.register(context, { coordinator, log, counts });
+  preview.register(context, { log });
   agentSetup.register(context, { extensionVersion: DIAGRAMIST_VERSION, log, counts });
   for (const [command, title] of Object.entries(LATER)) {
     context.subscriptions.push(
@@ -47,6 +48,7 @@ export function activate(context: vscode.ExtensionContext) {
     replaceTrustForTests,
     registerAgentSetupForTests: (testContext: Pick<vscode.ExtensionContext, "subscriptions" | "globalState">) =>
       agentSetup.register(testContext as vscode.ExtensionContext, { extensionVersion: DIAGRAMIST_VERSION, log, counts }),
+    restorePreviewForTests: (state: PreviewState) => preview.restoreForTests(context, log, state),
   };
 }
 
