@@ -1602,6 +1602,32 @@ release checklist covers the real behaviour.
 | `--pele-series-1` to `-4`, `-6`, `-7` | `--vscode-charts-blue`, `-orange`, `-green`, `-red`, `-yellow`, `-purple` | Pele defaults | Pele defaults |
 | `--pele-series-5`, `--pele-series-8` | Pele defaults (`#72b7b2`, `#9d755d`) | Pele defaults | Pele defaults |
 
+**P5 results (2026-11-14).**
+
+*   **Built:** items 96 to 113, all of them.
+*   **Webview tests (7):** run in Chromium.
+    *   Both renderers draw all 48 samples.
+    *   A 100-node flowchart draws in about 80 ms with Pele (target 300) and about 550 ms with
+        Mermaid.js (target 1,000).
+    *   A remote image fetches nothing.
+*   **Extension tests:** 14 pass, 4 of them for the preview.
+*   **Decided while building:**
+    *   **Mermaid.js output:** parsed in an inert document and stripped of inline event handlers
+        before it goes on the page. Mermaid.js gives sequence-diagram actors with `link` lines a
+        click menu through inline `onclick` handlers. The page's CSP blocks those as intended, so the
+        menus don't open in the preview, and `csp.spec.ts` allows exactly that one violation.
+    *   **Mermaid.js errors:** a sentence, then Mermaid.js's own message (up to 12 lines) in a code
+        box, over the last good drawing, dimmed.
+    *   **Pele errors:** Pele's `mount()` keeps its own last good drawing and shows its message
+        under it. The preview adds only a sentence for screen readers.
+    *   **Theme map:** it also lists Pele 1.13.0's zoom variables (`--pele-zoom-*`), left at Pele's
+        defaults. The three weight variables in the design's table aren't read by Pele 1.13.0, and
+        are kept for later versions.
+    *   **Messages:** `render` also carries `fileName` and `locked`, for the status line and the lock
+        button.
+    *   **Typecheck:** it runs seven TypeScript configurations, now including the webview and its
+        tests.
+
 ### Phase P6: Export
 
 **Gate:** `test/webview/export.spec.ts` and `test/extension/suite/export.test.ts` pass.

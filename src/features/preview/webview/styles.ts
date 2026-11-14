@@ -12,7 +12,8 @@ main { padding: 8px 12px 24px; }
 .block { margin: 0 0 18px; padding: 8px; border-radius: 4px; }
 .block.current { box-shadow: inset 2px 0 0 var(--vscode-focusBorder); }
 .block .label { color: var(--vscode-descriptionForeground); font-size: 0.9em; margin-bottom: 4px; }
-.block .error { color: var(--vscode-errorForeground); white-space: pre-wrap; margin-bottom: 6px; }
+.block .error { color: var(--vscode-errorForeground); margin-bottom: 6px; }
+.block .error pre { margin: 4px 0 0; padding: 6px 8px; overflow-x: auto; white-space: pre; font-family: var(--vscode-editor-font-family, monospace); font-size: 0.92em; color: var(--vscode-editor-foreground); background: var(--vscode-textCodeBlock-background, rgba(127, 127, 127, 0.1)); border-radius: 4px; }
 .block .error:empty { display: none; }
 .block.stale .drawing { opacity: 0.35; }
 .drawing { overflow: auto; }

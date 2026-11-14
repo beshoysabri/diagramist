@@ -85,6 +85,22 @@ export function start(vscode: VsCodeApi): void {
     return view;
   };
 
+  /** A sentence, announced to screen readers, and the renderer's own message under it. */
+  const showError = (view: BlockView, sentence: string | null, details?: string) => {
+    if (!sentence) {
+      view.error.replaceChildren();
+      return;
+    }
+    const lead = document.createElement("div");
+    lead.textContent = sentence;
+    view.error.replaceChildren(lead);
+    if (details) {
+      const pre = document.createElement("pre");
+      pre.textContent = details;
+      view.error.append(pre);
+    }
+  };
+
   const report = (blockIndex: number, error: string | null) => {
     if (!current) return;
     vscode.postMessage(error === null
@@ -101,8 +117,8 @@ export function start(vscode: VsCodeApi): void {
       if (!view.pele) {
         view.drawing.replaceChildren();
         view.pele = drawWithPele(view.drawing, block.text, (error) => {
-          view.error.textContent = error ? `Pele can't draw this diagram: ${error}` : "";
-          view.section.classList.toggle("stale", Boolean(error));
+          // Pele shows the details in its own error display; this line is for screen readers.
+          showError(view, error ? "Pele can't draw this diagram. The details are below." : null);
           report(block.index, error);
         });
       } else {
@@ -118,18 +134,18 @@ export function start(vscode: VsCodeApi): void {
       await drawWithMermaid(scratch, block.text, theme);
       if (mine !== generation) return;
       view.drawing.replaceChildren(...scratch.childNodes);
-      view.error.textContent = "";
+      showError(view, null);
       view.section.classList.remove("stale");
       view.drawn = key;
       report(block.index, null);
     } catch (error) {
       if (mine !== generation) return;
-      const text = String((error as Error | undefined)?.message ?? error).split("\n").find((line) => line.trim()) ?? "Mermaid.js can't draw this diagram.";
-      view.error.textContent = `Mermaid.js can't draw this diagram: ${text}`;
+      const lines = String((error as Error | undefined)?.message ?? error).trim().split("\n");
+      showError(view, "Mermaid.js can't draw this diagram.", lines.slice(0, 12).join("\n"));
       // The last good drawing stays, dimmed, under the error.
-      view.section.classList.add("stale");
+      view.section.classList.toggle("stale", view.drawing.childElementCount > 0);
       view.drawn = null;
-      report(block.index, text);
+      report(block.index, lines.find((line) => line.trim()) ?? "error");
     }
   }
 
