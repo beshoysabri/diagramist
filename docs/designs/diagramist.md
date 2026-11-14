@@ -1010,7 +1010,14 @@ the pull request), the icon artwork, and README prose. Everything else is specif
 *   an Open VSX namespace;
 *   an npm account that owns `diagramist`: created on 2026-11-14; the account publishes 0.1.0 by
     hand, then adds GitHub Actions as the package's trusted publisher;
-*   the release tokens `VSCE_PAT` and `OVSX_PAT`, as repository secrets. npm needs no token.
+*   `OVSX_PAT`, as a repository secret, for Open VSX. npm and the VS Code Marketplace need no
+    token:
+    *   **npm:** trusted publishing.
+    *   **Marketplace:** Marketplace Trusted Publishing from GitHub Actions,
+        `vsce publish --oidc`. Microsoft recommends it, and retires Azure DevOps global personal
+        access tokens on 2026-12-01
+        ([publishing guide](https://code.visualstudio.com/api/working-with-extensions/publishing-extension),
+        checked 2026-11-14).
 
 ### Phase P1: Skeleton, core, corpus and unit tests
 
@@ -1400,9 +1407,12 @@ npm name.
     *   **Result sizes:** a passing result is 89 characters, and failing ones 573 to 861.
     *   **Permissions:** one denial, from a command joined with `&&`. The skill now says to run the
         check on its own.
-*   **D7, provisional:** for Claude Code the MCP server meets neither condition of the rule. D7
-    stays open until Gemini CLI, Antigravity CLI and Codex have run; those need the owner's
-    logins.
+*   **D7, decided for v1 (2026-11-14):** for Claude Code the MCP server meets neither condition of
+    the rule.
+    *   **Deferred:** the owner will try Gemini CLI, Antigravity CLI and Codex himself once
+        Diagramist is published, rather than run the evaluation with them now.
+    *   **The outcome:** the MCP server stays in the code but out of `--help` and the docs' main
+        path. It is revisited if one of those agents can't pre-approve `diagramist check`.
 
 ### Phase P4: Extension shell and diagnostics
 
