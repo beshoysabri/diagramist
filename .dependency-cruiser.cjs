@@ -72,7 +72,7 @@ module.exports = {
       name: "no-vscode-outside-host-code",
       comment: "core, draw, platform/node, platform/messages, the checker and webview code never import vscode.",
       severity: "error",
-      from: { path: "^src/(core/|draw/|platform/node/|platform/messages\\.ts$|features/checker/|features/[^/]+/webview/|entries/(cli|webview|pele-worker|mermaid-worker)\\.ts$)" },
+      from: { path: "^src/(core/|draw/|platform/node/|platform/messages\\.ts$|features/checker/|features/[^/]+/webview/|entries/(cli|webview|check-worker)\\.ts$)" },
       to: { path: "^vscode$" },
     },
     {

@@ -1,6 +1,7 @@
 # Using Diagramist with AI coding agents
 
-How to set up Claude Code, Gemini CLI and Codex to check the Mermaid diagrams they write. Each
+How to set up Claude Code, Gemini CLI, Antigravity CLI and Codex to check the Mermaid diagrams they
+write. Each
 step uses the agent's own commands and files, checked against its official documentation on
 2026-11-14; the sources are linked per agent. Agents change often, so this page is re-checked
 before each release.
@@ -99,6 +100,40 @@ Pro or Ultra accounts moved to Antigravity CLI, which Diagramist hasn't been tes
     [trusted folders](https://geminicli.com/docs/cli/trusted-folders),
     [MCP](https://geminicli.com/docs/tools/mcp-server).
 
+## Antigravity CLI
+
+Google's agent for personal accounts: free, Google AI Pro and Ultra. Its command is `agy`.
+
+*   **Install:** `curl -fsSL https://antigravity.google/cli/install.sh | bash` on Linux and macOS,
+    which installs `~/.local/bin/agy`, or `irm https://antigravity.google/cli/install.ps1 | iex` in
+    Windows PowerShell. On first start it signs you in with your Google account in the browser.
+*   **Skill:** copy it to `~/.gemini/config/skills/`, the global folder it shares with the Antigravity
+    app. Antigravity rereads skills before each turn.
+
+    ```sh
+    mkdir -p ~/.gemini/config/skills && cp -R "$SKILL_DIR" ~/.gemini/config/skills/
+    ```
+
+    Antigravity CLI also reads Gemini CLI's `~/.gemini/skills/` and prefers it. If you use both,
+    keep a single copy there, so that an old copy never hides a newer one.
+*   **Permission:** add a rule to `permissions.allow` in `~/.gemini/antigravity-cli/settings.json`.
+    It matches commands that start with `diagramist check`, word by word:
+
+    ```json
+    { "permissions": { "allow": ["command(diagramist check)"] } }
+    ```
+
+    `/permissions` inside `agy` edits the same rules. On Windows, Antigravity matches PowerShell and
+    CMD commands exactly, so a prefix rule may not apply there.
+*   **Sources:** [getting started](https://antigravity.google/docs/getting-started?tab=cli),
+    [install](https://antigravity.google/docs/install?tab=cli),
+    [skills](https://antigravity.google/docs/skills),
+    [where skills are found](https://antigravity.google/docs/customization-discovery?tab=cli),
+    [permissions](https://antigravity.google/docs/permissions?tab=cli),
+    [settings](https://antigravity.google/docs/settings?tab=cli),
+    [MCP](https://antigravity.google/docs/mcp?tab=cli),
+    [the move from Gemini CLI](https://developers.googleblog.com/an-important-update-transitioning-gemini-cli-to-antigravity-cli/).
+
 ## Codex
 
 *   **Install:** `curl -fsSL https://chatgpt.com/codex/install.sh | sh` on Linux and macOS, or
@@ -149,7 +184,7 @@ Pro or Ultra accounts moved to Antigravity CLI, which Diagramist hasn't been tes
 
 | Tier | Setups |
 | --- | --- |
-| Supported | Claude Code, Gemini CLI and Codex in a terminal on Linux |
+| Supported | Claude Code, Gemini CLI, Antigravity CLI and Codex in a terminal on Linux |
 | Best effort | macOS; Windows; the agents' own VS Code panels; Remote-SSH; WSL |
 | Unsupported | VS Code for the Web |
 
@@ -163,6 +198,7 @@ so treat these steps as provisional.
 | --- | --- | --- |
 | Claude Code | `claude mcp add --scope user --transport stdio diagramist -- diagramist mcp` | Add `"mcp__diagramist__check"` to `permissions.allow` |
 | Gemini CLI | `gemini mcp add -s user diagramist diagramist mcp` | A policy rule with `mcpName = "diagramist"`, `toolName = "check"`, `decision = "allow"` |
+| Antigravity CLI | Add `"diagramist": { "command": "diagramist", "args": ["mcp"] }` under `mcpServers` in `~/.gemini/config/mcp_config.json` | Add `"mcp(diagramist/check)"` to `permissions.allow` |
 | Codex | `codex mcp add diagramist -- diagramist mcp` | In `~/.codex/config.toml`, `[mcp_servers.diagramist.tools.check]` with `approval_mode = "approve"` |
 
 Gemini CLI writes project settings unless you pass `-s user`. Gemini CLI doesn't connect MCP servers

@@ -1,0 +1,133 @@
+{
+  "name": "diagramist",
+  "displayName": "Diagramist: Mermaid & Pele diagrams for AI agents",
+  "description": "Mermaid diagrams checked with Mermaid.js and Pele: Problems-panel errors, a live preview and export, and setup for Claude Code, Gemini CLI, Antigravity CLI and Codex.",
+  "version": "0.1.1",
+  "publisher": "beshoysabri",
+  "license": "MIT",
+  "homepage": "https://github.com/beshoysabri/diagramist#readme",
+  "bugs": {
+    "url": "https://github.com/beshoysabri/diagramist/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/beshoysabri/diagramist.git",
+    "directory": "packages/vscode"
+  },
+  "engines": {
+    "vscode": "^1.101.0"
+  },
+  "main": "./dist/extension.cjs",
+  "extensionKind": [
+    "workspace"
+  ],
+  "categories": [
+    "Visualization",
+    "Linters"
+  ],
+  "keywords": [
+    "mermaid",
+    "pele",
+    "diagram",
+    "mcp",
+    "claude code",
+    "gemini cli",
+    "antigravity",
+    "codex"
+  ],
+  "activationEvents": [
+    "onLanguage:markdown",
+    "onLanguage:mermaid",
+    "onWebviewPanel:diagramist.preview"
+  ],
+  "capabilities": {
+    "untrustedWorkspaces": {
+      "supported": "limited",
+      "description": "In Restricted Mode, agent setup is off. The preview and the Problems panel keep working."
+    }
+  },
+  "contributes": {
+    "commands": [
+      {
+        "command": "diagramist.openPreviewToSide",
+        "title": "Open Preview to the Side",
+        "category": "Diagramist",
+        "icon": "$(open-preview)"
+      },
+      {
+        "command": "diagramist.togglePreviewLock",
+        "title": "Toggle Preview Lock",
+        "category": "Diagramist"
+      },
+      {
+        "command": "diagramist.exportDiagram",
+        "title": "Export Diagram…",
+        "category": "Diagramist"
+      },
+      {
+        "command": "diagramist.connectAgent",
+        "title": "Connect AI Agent",
+        "category": "Diagramist"
+      },
+      {
+        "command": "diagramist.checkAgentSetup",
+        "title": "Check Agent Setup",
+        "category": "Diagramist"
+      },
+      {
+        "command": "diagramist.disconnectAgent",
+        "title": "Disconnect AI Agent",
+        "category": "Diagramist"
+      },
+      {
+        "command": "diagramist.copyDiagnosticReport",
+        "title": "Copy Diagnostic Report",
+        "category": "Diagramist"
+      }
+    ],
+    "menus": {
+      "editor/title": [
+        {
+          "command": "diagramist.openPreviewToSide",
+          "when": "resourceExtname =~ /^\\.(md|markdown|mmd|mermaid)$/i",
+          "group": "navigation"
+        }
+      ]
+    },
+    "languages": [
+      {
+        "id": "mermaid",
+        "extensions": [
+          ".mmd",
+          ".mermaid"
+        ],
+        "aliases": [
+          "Mermaid"
+        ]
+      }
+    ],
+    "configuration": {
+      "title": "Diagramist",
+      "properties": {
+        "diagramist.preview.defaultRenderer": {
+          "type": "string",
+          "enum": [
+            "mermaid",
+            "pele"
+          ],
+          "enumDescriptions": [
+            "Mermaid.js, as GitHub, Notion and documentation sites draw it",
+            "Pele, as Obsidian draws it"
+          ],
+          "default": "mermaid",
+          "description": "The renderer the preview starts with."
+        },
+        "diagramist.diagnostics.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show the checker's errors for saved diagram files in the Problems panel."
+        }
+      }
+    }
+  }
+}

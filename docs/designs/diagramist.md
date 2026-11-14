@@ -107,8 +107,9 @@ architecture sketches in READMEs, flows in documentation, figures for slides. Th
     `targets=none`. Pele's verdict also becomes binding when the user exports with Pele.
 
     *Measure:* corpus tests cover every `targets` value.
-3.  **Tested with three agents.** Claude Code, Gemini CLI and Codex can check and fix diagrams with
-    Diagramist when run from a terminal, including VS Code's integrated terminal.
+3.  **Tested with four agents.** Claude Code, Gemini CLI, Antigravity CLI (added 2026-11-14) and
+    Codex can check and fix diagrams with Diagramist when run from a terminal, including VS Code's
+    integrated terminal.
 
     *Measures:*
     *   Connecting one agent takes one VS Code command ("Diagramist: Connect AI Agent"). Without VS
@@ -181,11 +182,12 @@ These are for v1.
 None blocks implementation. The unknowns that remain are listed under
 [Risks & Limits](#risks--limits), each with the decision it affects.
 
-*   **Gemini CLI or Antigravity CLI (found 2026-11-14, for the owner).** Since 2026-06-18, Gemini CLI
-    is for Gemini Code Assist Standard and Enterprise; free and Google AI Pro or Ultra accounts moved
-    to Antigravity CLI ([Gemini CLI README](https://github.com/google-gemini/gemini-cli)). Goal 3,
-    D8 and the evaluation name Gemini CLI. Should Antigravity CLI replace it, or join it as a fourth
-    agent?
+*   **Gemini CLI or Antigravity CLI: resolved 2026-11-14.**
+    *   **The finding:** since 2026-06-18, Gemini CLI is for Gemini Code Assist Standard and
+        Enterprise; free and Google AI Pro or Ultra accounts moved to Antigravity CLI (`agy`)
+        ([Gemini CLI README](https://github.com/google-gemini/gemini-cli)).
+    *   **The owner's decision:** support both, for enterprise and personal users. Antigravity CLI
+        becomes the fourth agent in Goal 3, D8, the evaluation and `docs/agents.md`.
 
 ## Critical User Journeys (CUJs)
 
@@ -755,6 +757,8 @@ CA-06.*
     the user agrees, so no agent shares a folder with another:
     *   `~/.claude/skills/diagramist/` for Claude Code;
     *   `~/.gemini/skills/diagramist/` for Gemini CLI;
+    *   `~/.gemini/config/skills/diagramist/` for Antigravity CLI (added 2026-11-14). It also reads
+        Gemini CLI's folder and prefers it, so someone with both agents keeps one copy there;
     *   `~/.agents/skills/diagramist/` for Codex.
 
     The sources are under Additional Resources.

@@ -1,17 +1,19 @@
 #!/usr/bin/env node
-// Builds packages/diagramist (design items 44 and 45): the CLI and the check worker, bundled with
-// esbuild, plus LICENSE, the agent skill and THIRD_PARTY_NOTICES.md. Both bundles get their version
-// strings from the same build, so they always agree on the renderer versions.
+// Builds packages/diagramist (design items 44 and 45) and packages/vscode (item 87): the CLI, the
+// extension and the check worker, bundled with esbuild, plus LICENSE, the agent skill and
+// THIRD_PARTY_NOTICES.md in each package. Every bundle gets its version strings from the same build,
+// so they always agree on the renderer versions, and the two packages must share one version.
 //
 //   node scripts/build.mjs
 import { copyFileSync, mkdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
-import { dirname, join, resolve } from "node:path";
+import { dirname, join, relative, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { build } from "esbuild";
 import { writeThirdPartyNotices } from "./third-party-notices.mjs";
 
 const root = resolve(import.meta.dirname, "..");
 const packageDir = join(root, "packages/diagramist");
+const extensionDir = join(root, "packages/vscode");
 const versionOf = (dir) => JSON.parse(readFileSync(join(dir, "package.json"), "utf8")).version;
 
 // Bundled CommonJS code still calls require() and reads __dirname (found in P2).
@@ -23,9 +25,8 @@ const banner = [
   'const __dirname = __filename.slice(0, Math.max(__filename.lastIndexOf("/"), __filename.lastIndexOf("\\\\")));',
 ].join("\n");
 
-/** Builds cli.mjs and check-worker.mjs into `outDir`, and returns esbuild's metafiles. */
-export async function bundleChecker({ outDir, minify = true }) {
-  const common = {
+function commonOptions(minify) {
+  return {
     absWorkingDir: root,
     bundle: true,
     platform: "node",
@@ -43,6 +44,11 @@ export async function bundleChecker({ outDir, minify = true }) {
     metafile: true,
     logLevel: "warning",
   };
+}
+
+/** Builds cli.mjs and check-worker.mjs into `outDir`, and returns esbuild's metafiles. */
+export async function bundleChecker({ outDir, minify = true }) {
+  const common = commonOptions(minify);
   const cli = await build({
     ...common,
     entryPoints: [join(root, "src/entries/cli.ts")],
@@ -58,24 +64,43 @@ export async function bundleChecker({ outDir, minify = true }) {
   return [cli.metafile, worker.metafile];
 }
 
+/** Builds extension.cjs (CommonJS, for VS Code's extension host) and check-worker.mjs into `outDir`. */
+export async function bundleExtension({ outDir, minify = true }) {
+  const common = commonOptions(minify);
+  const extension = await build({
+    ...common,
+    format: "cjs",
+    // VS Code 1.101's extension host runs Node 22.15 (docs/designs/packaging-notes.md).
+    target: "node22.15",
+    entryPoints: [join(root, "src/entries/extension.ts")],
+    outfile: join(outDir, "extension.cjs"),
+    external: [...common.external, "vscode"],
+  });
+  const worker = await build({ ...common, entryPoints: [join(root, "src/entries/check-worker.ts")], outfile: join(outDir, "check-worker.mjs"), banner: { js: banner } });
+  return [extension.metafile, worker.metafile];
+}
+
 async function main() {
-  const dist = join(packageDir, "dist");
-  rmSync(dist, { recursive: true, force: true });
-  const metafiles = await bundleChecker({ outDir: dist });
-  copyFileSync(join(root, "LICENSE"), join(packageDir, "LICENSE"));
-  copySkill(versionOf(packageDir));
-  const notices = writeThirdPartyNotices(metafiles, join(packageDir, "THIRD_PARTY_NOTICES.md"), root);
-  const size = (file) => `${(statSync(join(dist, file)).size / 1e6).toFixed(2)} MB`;
-  console.log(`Built diagramist ${versionOf(packageDir)}: dist/cli.mjs ${size("cli.mjs")}, dist/check-worker.mjs ${size("check-worker.mjs")}; ${notices} bundled packages in THIRD_PARTY_NOTICES.md.`);
+  const version = versionOf(packageDir);
+  if (versionOf(extensionDir) !== version) throw new Error(`packages/vscode is ${versionOf(extensionDir)} but packages/diagramist is ${version}; they share one version`);
+  const size = (dir, file) => `${(statSync(join(dir, "dist", file)).size / 1e6).toFixed(2)} MB`;
+  for (const [dir, bundle, files] of [[packageDir, bundleChecker, ["cli.mjs", "check-worker.mjs"]], [extensionDir, bundleExtension, ["extension.cjs", "check-worker.mjs"]]]) {
+    rmSync(join(dir, "dist"), { recursive: true, force: true });
+    const metafiles = await bundle({ outDir: join(dir, "dist") });
+    copyFileSync(join(root, "LICENSE"), join(dir, "LICENSE"));
+    copySkill(dir, version);
+    const notices = writeThirdPartyNotices(metafiles, join(dir, "THIRD_PARTY_NOTICES.md"), root);
+    console.log(`Built ${relative(root, dir)} ${version}: ${files.map((file) => `dist/${file} ${size(dir, file)}`).join(", ")}; ${notices} bundled packages in THIRD_PARTY_NOTICES.md.`);
+  }
 }
 
 /** Copies skills/diagramist/SKILL.md into the package, with the version in metadata.diagramistVersion (D8). */
-function copySkill(version) {
+function copySkill(dir, version) {
   const source = readFileSync(join(root, "skills/diagramist/SKILL.md"), "utf8");
   const versioned = source.replace(/^(\s+diagramistVersion:).*$/m, `$1 "${version}"`);
   if (!versioned.includes(`diagramistVersion: "${version}"`)) throw new Error("SKILL.md has no metadata.diagramistVersion line");
-  const target = join(packageDir, "skills/diagramist/SKILL.md");
-  rmSync(join(packageDir, "skills"), { recursive: true, force: true });
+  const target = join(dir, "skills/diagramist/SKILL.md");
+  rmSync(join(dir, "skills"), { recursive: true, force: true });
   mkdirSync(dirname(target), { recursive: true });
   writeFileSync(target, versioned);
 }

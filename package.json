@@ -9,7 +9,7 @@
     "node": ">=22.12"
   },
   "scripts": {
-    "typecheck": "tsc -p tsconfig.core.json && tsc -p tsconfig.node.json && tsc -p tsconfig.test.json",
+    "typecheck": "tsc -p tsconfig.core.json && tsc -p tsconfig.node.json && tsc -p tsconfig.host.json && tsc -p tsconfig.test.json",
     "lint:deps": "depcruise src --config .dependency-cruiser.cjs",
     "test": "vitest run --coverage --project core --project mermaid --project node",
     "verify:corpus": "node scripts/verify-corpus-in-browser.mjs",
