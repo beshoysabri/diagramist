@@ -181,6 +181,12 @@ These are for v1.
 None blocks implementation. The unknowns that remain are listed under
 [Risks & Limits](#risks--limits), each with the decision it affects.
 
+*   **Gemini CLI or Antigravity CLI (found 2026-11-14, for the owner).** Since 2026-06-18, Gemini CLI
+    is for Gemini Code Assist Standard and Enterprise; free and Google AI Pro or Ultra accounts moved
+    to Antigravity CLI ([Gemini CLI README](https://github.com/google-gemini/gemini-cli)). Goal 3,
+    D8 and the evaluation name Gemini CLI. Should Antigravity CLI replace it, or join it as a fourth
+    agent?
+
 ## Critical User Journeys (CUJs)
 
 ### CUJ 1: Claude Code fixes a README diagram
@@ -1376,7 +1382,13 @@ npm name.
         a test that every planted error is a Mermaid.js error and every fix passes both renderers,
         and `PROCEDURE.md`.
     *   **Line endings:** `.gitattributes` forces LF, because Windows checkouts used CRLF.
-*   **Left in P3:** item 63 (`docs/agents.md`), and item 72, the evaluation run. The run needs the
+*   **`docs/agents.md` (item 63):** a first version, with each agent's commands and files, and
+    sources checked on 2026-11-14. Two findings for P7:
+    *   **Shared skills folder:** Gemini CLI also reads `~/.agents/skills/`, Codex's folder, and
+        prefers it. So D8's "no agent shares a folder" holds only when one of the two is set up.
+    *   **Codex permissions:** in Codex's Auto mode `diagramist check` runs without a prompt, so a
+        rule is needed only outside Auto mode.
+*   **Left in P3:** item 72, the evaluation run. The run needs the
     owner's go-ahead and his Gemini CLI and Codex accounts; only Claude Code is installed on
     bshome.
 

@@ -11,8 +11,8 @@ twice:
 Each problem comes back as one line with its position in your file, the lines around it, and a short
 hint. Everything runs on your machine, with no network and no AI model.
 
-**Status:** preview (0.1). This is the command-line checker. The VS Code extension with a live
-preview, the agent setup and the agent skill are coming; see the
+**Status:** preview (0.1). This is the command-line checker and its agent skill. The VS Code
+extension, with a live preview and one-click agent setup, is coming; see the
 [repository](https://github.com/beshoysabri/diagramist).
 
 ## Install
@@ -60,9 +60,10 @@ diagram type:
 
 The values are `mermaid`, `pele`, `mermaid,pele`, and `none`.
 
-**For AI agents.** Tell your agent to run `diagramist check <file>` after it writes or edits a
-diagram, to fix errors until the check passes, and to stop and ask you after three failures on the
-same error.
+**For AI agents.** The package includes a skill, `skills/diagramist/SKILL.md`, that teaches Claude
+Code, Gemini CLI and Codex when and how to check, and when to stop and ask you. The
+[agent guide](https://github.com/beshoysabri/diagramist/blob/main/docs/agents.md) shows where each
+agent keeps skills, and how to let it run `diagramist check` without asking every time.
 
 ## Privacy and safety
 
