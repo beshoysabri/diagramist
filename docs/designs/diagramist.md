@@ -891,7 +891,7 @@ CA-06.*
 | R5 | Memory per agent session | A checker process uses about 55 to 65 MB before its worker starts, 125 to 145 MB once it is ready, 145 to 165 MB after typical diagrams and 195 to 230 MB with every diagram type loaded (P2, Linux and macOS; Windows reports less; [packaging notes](packaging-notes.md)) | linkedom, the lightest stand-in, and one worker for both renderers (P2); the worker starts only on the first diagram; the 256 MB budget in the NFRs | Many parallel sessions multiply the cost |
 | R6 | Reading arbitrary files | A pre-approved tool could read files the user didn't intend | Diagram file types only, regular files, real paths; untrusted labels (section 6) | Any diagram file the user's account can read can be checked |
 | R7 | One diagram freezes the preview | The webview draws without a time limit | A typing pause; the 50,000-character and 5,000-edge limits; the last good drawing kept | A pathological diagram can stall the preview panel (not VS Code itself) until it is closed |
-| R8 | Supply chain | The extension offers `npm install -g diagramist`, so the npm name and its publish token matter | Reserve the name before P3; publish only from CI, with provenance and 2FA | A compromised npm account |
+| R8 | Supply chain | The extension offers `npm install -g diagramist`, so the npm name and its publish token matter | npm has no reservation and forbids placeholder packages, so the first working CLI (0.1.0) is published early in P3, by hand with 2FA; every later release comes only from CI through npm trusted publishing, with provenance and no stored token | A compromised npm account |
 | R9 | Agents' CLIs change | Commands and skill folders change between agent releases | Use the agents' own commands; re-check before each release (P7, P8); dated sources | Breakage between checks |
 | R10 | One maintainer | 2 renderers × 3 agents × 3 operating systems × remote setups | Support tiers in `docs/agents.md`; CI covers the checker on three operating systems | Best-effort combinations may break |
 
@@ -998,8 +998,9 @@ the pull request), the icon artwork, and README prose. Everything else is specif
 
 *   a VS Code Marketplace publisher ID;
 *   an Open VSX namespace;
-*   an npm account that owns `diagramist` (reserve the name before P3);
-*   the release tokens `NPM_TOKEN`, `VSCE_PAT` and `OVSX_PAT`, as repository secrets.
+*   an npm account that owns `diagramist`: created on 2026-11-14; the account publishes 0.1.0 by
+    hand, then adds GitHub Actions as the package's trusted publisher;
+*   the release tokens `VSCE_PAT` and `OVSX_PAT`, as repository secrets. npm needs no token.
 
 ### Phase P1: Skeleton, core, corpus and unit tests
 
@@ -1342,6 +1343,26 @@ The 15 MB size gate still applies.
     D7's rule applied.
 73. `.github/workflows/ci.yml` (Modify). Add `build` and `test:checker`.
 
+**P3 progress (2026-11-14): the CLI.** Built first, so that a working `diagramist` 0.1.0 holds the
+npm name.
+
+*   **Done:**
+    *   items 44 to 52, 54, 55, 58 to 61, 64 to 67 and 73;
+    *   `npm test` runs 205 tests, and `npm run test:checker` runs 11 tests against the built package.
+*   **The package:** 2.0 MB packed, 7.0 MB unpacked, with no dependencies. It bundles 89 packages,
+    whose licences `THIRD_PARTY_NOTICES.md` lists. The build fails on a licence outside a known
+    allowlist.
+*   **Decided while building:**
+    *   **Version:** `diagramist --version` prints
+        `diagramist <version> (Mermaid.js <version>, Pele <version>)`.
+    *   **Empty folders:** a folder with no diagram files prints a note and doesn't change the exit
+        code, like a file with no diagrams.
+    *   **MCP:** `diagramist mcp` exits 2 with a message until D7 decides.
+    *   **Folder scans:** they skip hidden folders, but not hidden files.
+    *   **Worker output:** anything the worker prints goes to the log at trace level, never to stdout.
+*   **Left in P3:** items 56 and 57 (MCP server and tool description), 62 (SKILL.md), 63
+    (`docs/agents.md`), and 68 to 72 (MCP contract test, offline test and the agent evaluation).
+
 ### Phase P4: Extension shell and diagnostics
 
 **Gate:** `npm run test:extension` passes on Linux under `xvfb-run`, and on macOS and Windows.
@@ -1620,9 +1641,10 @@ release checklist covers the real behaviour.
      *   **Permissions:** `contents: read` and `id-token: write`.
      *   **Steps:**
          *   build, test and package;
-         *   `npm publish --provenance`, with `--tag next` for odd minor versions;
+         *   `npm publish` through npm trusted publishing (npm 11.5.1 or later), which adds
+             provenance, with `--tag next` for odd minor versions;
          *   `vsce publish` and `ovsx publish`, both with `--pre-release` for odd minor versions.
-     *   **Secrets:** `NPM_TOKEN`, `VSCE_PAT` and `OVSX_PAT`.
+     *   **Secrets:** `VSCE_PAT` and `OVSX_PAT`.
 135. `docs/release-checklist.md` (Create). Manual checks before each release:
      *   Restricted Mode;
      *   the agent evaluation, when the tool description, SKILL.md or a renderer changed;

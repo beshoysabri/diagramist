@@ -6,6 +6,12 @@ import { cleanParserMessage, oneLine } from "../shared/messages.js";
 import type { RawVerdict } from "../types.js";
 
 /**
+ * The measurer the check worker passes (P2): width = characters × font size × 0.6. It keeps Pele away
+ * from the browser stand-in's canvas, so verdicts never depend on the stand-in.
+ */
+export const CHECK_MEASURER: TextMeasurer = { width: (text, size) => text.length * size * 0.6 };
+
+/**
  * `measurer` replaces Pele's own text measuring. A worker that also hosts a browser stand-in passes one,
  * so that Pele doesn't try the stand-in's canvas.
  */

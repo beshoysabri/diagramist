@@ -1,0 +1,38 @@
+{
+  "name": "diagramist",
+  "version": "0.1.0",
+  "description": "Checks Mermaid diagrams with Mermaid.js and Pele, for AI coding agents and CI. Runs locally, with no network.",
+  "keywords": [
+    "mermaid",
+    "pele",
+    "diagram",
+    "lint",
+    "checker",
+    "claude code",
+    "gemini cli",
+    "codex"
+  ],
+  "homepage": "https://github.com/beshoysabri/diagramist#readme",
+  "bugs": "https://github.com/beshoysabri/diagramist/issues",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/beshoysabri/diagramist.git",
+    "directory": "packages/diagramist"
+  },
+  "license": "MIT",
+  "author": "Beshoy Sabri",
+  "type": "module",
+  "bin": {
+    "diagramist": "dist/cli.mjs"
+  },
+  "files": [
+    "dist",
+    "skills",
+    "LICENSE",
+    "THIRD_PARTY_NOTICES.md",
+    "README.md"
+  ],
+  "engines": {
+    "node": ">=22.12"
+  }
+}
