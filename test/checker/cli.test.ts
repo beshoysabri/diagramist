@@ -9,7 +9,7 @@ import { z } from "zod";
 import { checkResultJsonSchema } from "../../src/core/result/schema.js";
 import { builtCli } from "../helpers/checker-paths.js";
 
-const dir = realpathSync(mkdtempSync(join(tmpdir(), "diagramist-cli-")));
+const dir = realpathSync.native(mkdtempSync(join(tmpdir(), "diagramist-cli-")));
 afterAll(() => rmSync(dir, { recursive: true, force: true }));
 
 const file = (name: string, content: string) => {

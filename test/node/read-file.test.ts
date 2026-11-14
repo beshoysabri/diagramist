@@ -6,7 +6,8 @@ import { join } from "node:path";
 import { afterAll, describe, expect, it } from "vitest";
 import { readDiagramFile } from "../../src/platform/node/read-file.js";
 
-const dir = realpathSync(mkdtempSync(join(tmpdir(), "diagramist-read-")));
+// The native realpath, like the checker: on Windows it also expands 8.3 short names such as RUNNER~1.
+const dir = realpathSync.native(mkdtempSync(join(tmpdir(), "diagramist-read-")));
 afterAll(() => rmSync(dir, { recursive: true, force: true }));
 const file = (name: string, content: string | Buffer) => {
   writeFileSync(join(dir, name), content);
