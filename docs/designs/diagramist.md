@@ -1006,7 +1006,9 @@ the pull request), the icon artwork, and README prose. Everything else is specif
 
 **Owed by the author:**
 
-*   a VS Code Marketplace publisher ID;
+*   a VS Code Marketplace publisher ID: `beshoysabri` ("Beshoy Sabri"), created on 2026-11-14,
+    with a Trusted Publishing policy for `beshoysabri/diagramist`, workflow `release.yml`, and no
+    environment;
 *   an Open VSX namespace;
 *   an npm account that owns `diagramist`: created on 2026-11-14; the account publishes 0.1.0 by
     hand, then adds GitHub Actions as the package's trusted publisher;
