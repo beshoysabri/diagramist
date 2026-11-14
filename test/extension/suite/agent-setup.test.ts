@@ -4,7 +4,7 @@
 import * as assert from "node:assert/strict";
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, sep } from "node:path";
 import * as vscode from "vscode";
 import { AGENTS, agentById, commandLine, skillFolder } from "../../../src/features/agent-setup/agents.js";
 import { activate } from "../helpers.js";
@@ -72,10 +72,11 @@ suite("Agent setup", () => {
   test("leaves file paths out of the report unless they are asked for", async () => {
     const without = await vscode.commands.executeCommand<string>("diagramist.copyDiagnosticReport", { includePaths: false });
     for (const section of ["## Versions", "## Environment", "## Settings", "## Agent setup", "## This window"]) assert.ok(without?.includes(section), section);
-    assert.ok(!without!.includes(home) && !without!.includes("~/"), "no paths");
+    assert.ok(!without!.includes(home) && !without!.includes(`~${sep}`), "no paths");
     assert.match(without!, /Claude Code: [^;]+; skill \S+$/m);
     const withPaths = await vscode.commands.executeCommand<string>("diagramist.copyDiagnosticReport", { includePaths: true });
-    assert.ok(withPaths!.includes("in ~/.claude/skills/diagramist"));
+    // Paths are shown the platform's way, with the home folder as ~.
+    assert.ok(withPaths!.includes(`in ${join("~", ".claude", "skills", "diagramist")}`), withPaths);
     assert.equal(await vscode.env.clipboard.readText(), withPaths);
   });
 });
