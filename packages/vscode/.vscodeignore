@@ -1,0 +1,9 @@
+# Ship only what design item 76 lists.
+**
+!dist/**
+!skills/**
+!README.md
+!LICENSE
+!THIRD_PARTY_NOTICES.md
+!icon.png
+!package.json

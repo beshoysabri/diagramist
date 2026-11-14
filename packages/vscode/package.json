@@ -4,6 +4,7 @@
   "description": "Mermaid diagrams checked with Mermaid.js and Pele: Problems-panel errors, a live preview and export, and setup for Claude Code, Gemini CLI, Antigravity CLI and Codex.",
   "version": "0.1.1",
   "publisher": "beshoysabri",
+  "icon": "icon.png",
   "license": "MIT",
   "homepage": "https://github.com/beshoysabri/diagramist#readme",
   "bugs": {

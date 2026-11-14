@@ -42,7 +42,12 @@ export function activate(context: vscode.ExtensionContext) {
     );
   }
   // For the extension tests, which run in the same host but load their own copy of the modules.
-  return { counts, replaceTrustForTests };
+  return {
+    counts,
+    replaceTrustForTests,
+    registerAgentSetupForTests: (testContext: Pick<vscode.ExtensionContext, "subscriptions" | "globalState">) =>
+      agentSetup.register(testContext as vscode.ExtensionContext, { extensionVersion: DIAGRAMIST_VERSION, log, counts }),
+  };
 }
 
 export async function deactivate(): Promise<void> {
