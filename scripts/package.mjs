@@ -16,6 +16,9 @@ mkdirSync(out, { recursive: true });
 run(process.execPath, [join(root, "scripts/build.mjs")]);
 const version = JSON.parse(readFileSync(join(root, "packages/diagramist/package.json"), "utf8")).version;
 const vsix = join(out, `diagramist-${version}.vsix`);
-run("npx", ["vsce", "package", "--no-dependencies", "--out", vsix], join(root, "packages/vscode"));
+// Odd minor versions (0.1, 0.3) are pre-releases. `vsce publish --pre-release` only accepts a VSIX
+// that was packed as one.
+const preRelease = Number(version.split(".")[1]) % 2 === 1 ? ["--pre-release"] : [];
+run("npx", ["vsce", "package", "--no-dependencies", ...preRelease, "--out", vsix], join(root, "packages/vscode"));
 run("npm", ["pack", "--pack-destination", out], join(root, "packages/diagramist"));
 run(process.execPath, [join(root, "scripts/check-size.mjs"), vsix, join(out, `diagramist-${version}.tgz`)]);

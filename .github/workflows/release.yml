@@ -1,7 +1,8 @@
 # Releases Diagramist when a version tag such as v0.1.2 is pushed (design item 134). One job builds,
 # tests and packs, with no publishing rights; small jobs then publish exactly those files:
 #   * npm: `npm stage publish` through npm trusted publishing (no token). A maintainer approves the
-#     staged release on npmjs.com with 2FA.
+#     staged release on npmjs.com with 2FA. It waits for the Marketplace job, which goes live at once:
+#     if that fails, nothing is released and the same tag can be pushed again after the fix.
 #   * VS Code Marketplace: `vsce publish --oidc` through Marketplace Trusted Publishing (no token).
 #   * Open VSX: `ovsx publish` with the OVSX_PAT secret; skipped while that secret isn't set.
 # Odd minor versions (0.1.x, 0.3.x) are pre-releases on the Marketplace and Open VSX. On npm every
@@ -58,7 +59,7 @@ jobs:
 
   npm:
     name: Stage the npm package
-    needs: build
+    needs: [build, marketplace]
     runs-on: ubuntu-latest
     permissions:
       contents: read
