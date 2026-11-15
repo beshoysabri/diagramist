@@ -11,6 +11,10 @@ skill, which share one version number. The format follows
 
 ## [Unreleased]
 
+## [0.1.2] - 2026-11-15
+
+The first release of the VS Code extension, as a pre-release.
+
 ### Added
 
 *   **The VS Code extension:**
@@ -44,6 +48,7 @@ skill, which share one version number. The format follows
     Mermaid diagram with Mermaid.js 12.3.0 and Pele 1.13.0.
 *   **Options:** `--json`, `--verbose`, `--self-test`, `--version` and `--help`.
 
-[Unreleased]: https://github.com/beshoysabri/diagramist/compare/v0.1.1...HEAD
+[Unreleased]: https://github.com/beshoysabri/diagramist/compare/v0.1.2...HEAD
+[0.1.2]: https://github.com/beshoysabri/diagramist/compare/v0.1.1...v0.1.2
 [0.1.1]: https://github.com/beshoysabri/diagramist/tree/v0.1.1
 [0.1.0]: https://www.npmjs.com/package/diagramist/v/0.1.0
